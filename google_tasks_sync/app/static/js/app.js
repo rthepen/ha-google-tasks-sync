@@ -81,41 +81,55 @@ document.addEventListener('DOMContentLoaded', () => {
   function extractSublist(notes, listTitle, taskTitle) {
     if (notes) {
       const match = notes.match(/^\[(.*?)\]/);
-      if (match) return match[1];
+      if (match) {
+        let clean = match[1];
+        // Standardize naming if unnumbered
+        if (clean === 'Bouw - Verwarming Kelder' || clean === 'Verwarming Kelder') return "01. Bouw - Verwarming Kelder";
+        if (clean === 'Bouw - Studio Dave' || clean === 'Studio Dave') return "02. Bouw - Studio Dave";
+        if (clean === 'Bouw - Studio Rahiena' || clean === 'Studio Rahiena') return "03. Bouw - Studio Rahiena";
+        if (clean === 'Bouw - Eigen Studio' || clean === 'Eigen Studio') return "04. Bouw - Eigen Studio";
+        if (clean === 'Bouw - Thuisaccu' || clean === 'Thuisaccu') return "05. Bouw - Thuisaccu";
+        if (clean === 'Bouw - Home Assistant' || clean === 'Home Assistant') return "06. Bouw - Home Assistant";
+        return clean;
+      }
     }
     const tLow = ((taskTitle || '') + ' ' + (notes || '')).toLowerCase();
     
     if (listTitle.includes('Roy Persoonlijk')) {
       if (tLow.includes('brevet') || tLow.includes('zeilboot') || tLow.includes('buitenboordmotor') || tLow.includes('speervissen') || tLow.includes('portugal')) {
-        return "Hobby's & Vrije Tijd";
+        return "01. Hobby's & Vrije Tijd";
       }
-      return "Persoonlijke Zorg";
+      return "02. Persoonlijke Zorg";
     }
-    if (listTitle.includes('Karen Persoonlijk')) return "Persoonlijke Zorg";
+    if (listTitle.includes('Karen Persoonlijk')) return "01. Persoonlijke Zorg";
     if (listTitle.includes('Kapitein Roy')) {
       if (tLow.includes('gezinshuis') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('evaluatie') || tLow.includes('rapportage')) {
-        return "Gezinshuis";
+        return "01. Gezinshuis";
       }
-      return "Techniek & Beheer";
+      return "02. Techniek & Beheer";
     }
     if (listTitle.includes('Kapitein Karen')) {
-      if (tLow.includes('anticonceptie')) return "Persoonlijke Zorg";
-      if (tLow.includes('kavelweg')) return "Gezinshuis";
-      return "Huishouden & Zorg";
+      if (tLow.includes('anticonceptie')) return "01. Persoonlijke Zorg";
+      if (tLow.includes('kavelweg')) return "02. Gezinshuis";
+      return "03. Huishouden & Zorg";
     }
     if (listTitle.includes('Wisselende Kapiteins')) {
-      if (tLow.includes('verwarming kelder')) return "Bouw - Verwarming Kelder";
-      if (tLow.includes('studio dave')) return "Bouw - Studio Dave";
-      if (tLow.includes('studio rahiena')) return "Bouw - Studio Rahiena";
-      if (tLow.includes('eigen studio')) return "Bouw - Eigen Studio";
-      if (tLow.includes('thuisaccu')) return "Bouw - Thuisaccu";
-      if (tLow.includes('home assistant')) return "Bouw - Home Assistant";
+      if (tLow.includes('verwarming kelder') || tLow.includes('01. verwarming kelder')) return "01. Bouw - Verwarming Kelder";
+      if (tLow.includes('studio dave') || tLow.includes('02. studio dave')) return "02. Bouw - Studio Dave";
+      if (tLow.includes('studio rahiena') || tLow.includes('03. studio rahiena')) return "03. Bouw - Studio Rahiena";
+      if (tLow.includes('eigen studio') || tLow.includes('04. eigen studio')) return "04. Bouw - Eigen Studio";
+      if (tLow.includes('thuisaccu') || tLow.includes('05. thuisaccu')) return "05. Bouw - Thuisaccu";
+      if (tLow.includes('home assistant') || tLow.includes('06. home assistant')) return "06. Bouw - Home Assistant";
       const bouwKw = ['waterzijde', 'luchtleidingen', 'ha regeling', 'elektra', 'gipsplaten', 'xps', 'laminaat', 'keuken', 'naden', 'rachelwerk', 'luchtkanalen', 'muren', 'voorzetwanden', 'leidingen', 'meterkast', '3d-ontwerp', 'packs', 'omvormer', 'pv-panelen', 'ac/dc', 'mqtt', 'esp ', 'dashboard'];
-      if (bouwKw.some(k => tLow.includes(k))) return "Bouw Woning";
-      if (tLow.includes('maandrapportage') || tLow.includes('evaluatie') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('gastheerschap') || tLow.includes('beschikbaarheid')) return "Gezinshuis";
-      return "Wisselend & Gezin";
+      if (bouwKw.some(k => tLow.includes(k))) return "07. Bouw Woning";
+      if (tLow.includes('maandrapportage') || tLow.includes('evaluatie') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('gastheerschap') || tLow.includes('beschikbaarheid')) return "08. Gezinshuis";
+      return "09. Wisselend & Gezin";
     }
-    return "Algemeen";
+    return "10. Algemeen";
+  }
+
+  function naturalSort(a, b) {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
   }
 
   async function loadManagerTasks() {
@@ -139,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       
       managerFilterSublist.innerHTML = '<option value="all">Alle Sub-lijsten</option>' + 
-        Array.from(allSublists).sort().map(s => `<option value="${s}">📂 ${s}</option>`).join('');
+        Array.from(allSublists).sort(naturalSort).map(s => `<option value="${s}">📂 ${s}</option>`).join('');
 
       renderManagerTable();
     } catch (e) {
@@ -174,7 +188,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     let html = '';
-    Object.keys(grouped).sort().forEach(subName => {
+    Object.keys(grouped).sort(naturalSort).forEach(subName => {
+      // Sort tasks inside sublist by title naturally
+      grouped[subName].sort((a, b) => naturalSort(a.title, b.title));
       const count = grouped[subName].length;
       html += `
         <tr class="sublist-header-row">
