@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Google Tasks JSON Sync | Home Assistant</title>
+  <title>Google Tasks JSON & Kapitein Verdeler | Home Assistant</title>
   <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,11 +19,23 @@
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
         </div>
         <div class="brand-text">
-          <h1>Google Tasks JSON Editor & Sync</h1>
+          <h1>Google Tasks Multi-Sync</h1>
           <span class="badge" id="sync-status-badge">Klaar</span>
         </div>
       </div>
       
+      <!-- Nav Tabs -->
+      <div class="nav-tabs-header">
+        <button class="nav-tab active" id="tab-btn-editor" data-view="editor-view">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          JSON Live Editor
+        </button>
+        <button class="nav-tab" id="tab-btn-divider" data-view="divider-view">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
+          ⚖️ Kapitein Verdeler
+        </button>
+      </div>
+
       <div class="nav-actions">
         <button id="btn-sync-now" class="btn btn-primary">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -32,9 +44,8 @@
       </div>
     </header>
 
-    <!-- Main Content Area: Editor + Debug Log -->
-    <main class="content-area">
-      
+    <!-- VIEW 1: JSON Editor & Debug Log -->
+    <main class="content-area active-view" id="view-editor">
       <!-- Top Section: JSON Editor Panel -->
       <div class="editor-panel">
         <div class="editor-toolbar">
@@ -89,7 +100,213 @@
           <div class="log-entry">[SYSTEM] Debug logboek geïnitialiseerd...</div>
         </div>
       </div>
+    </main>
 
+    <!-- VIEW 2: Kapitein Taken Verdeler Wizard -->
+    <main class="content-area" id="view-divider" style="display:none;">
+      <div class="divider-wizard-card">
+        
+        <!-- Wizard Steps Indicator -->
+        <div class="wizard-stepper">
+          <div class="step-item active" data-step="1"><span class="step-num">1</span> Wisselende Taken</div>
+          <div class="step-line"></div>
+          <div class="step-item" data-step="2"><span class="step-num">2</span> Punten Roy (1000)</div>
+          <div class="step-line"></div>
+          <div class="step-item" data-step="3"><span class="step-num">3</span> Punten Karen (1000)</div>
+          <div class="step-line"></div>
+          <div class="step-item" data-step="4"><span class="step-num">4</span> Gemiddelden</div>
+          <div class="step-line"></div>
+          <div class="step-item" data-step="5"><span class="step-num">5</span> Taken Kiezen</div>
+          <div class="step-line"></div>
+          <div class="step-item" data-step="6"><span class="step-num">6</span> Overzicht & Sync</div>
+        </div>
+
+        <!-- STAP 1: Wisselende Taken Selecteren -->
+        <div class="wizard-step-content" id="step-1-content">
+          <div class="step-header">
+            <h2>Stap 1: Kies welke taken meedoen als Wisselende Kapitein</h2>
+            <p>Vink hieronder de taken aan die jullie in deze ronde willen verdelen.</p>
+          </div>
+          <div class="step-toolbar">
+            <button class="btn btn-sm btn-outline" id="btn-select-all-tasks">Alles Selecteren</button>
+            <button class="btn btn-sm btn-outline" id="btn-deselect-all-tasks">Alles Deselecteren</button>
+            <span class="tag" id="selected-tasks-count">0 taken geselecteerd</span>
+          </div>
+          <div class="tasks-selection-list" id="step-1-tasks-list">
+            <div class="loading-spinner">Taken ophalen...</div>
+          </div>
+          <div class="step-actions">
+            <button class="btn btn-primary" id="btn-step-1-next">Volgende: Roy's Punten ➔</button>
+          </div>
+        </div>
+
+        <!-- STAP 2: Punten Roy (1000pt) -->
+        <div class="wizard-step-content" id="step-2-content" style="display:none;">
+          <div class="step-header">
+            <h2>Stap 2: Puntenverdeling door Roy (1000 Punten)</h2>
+            <p>Verdeel exact 1000 punten over de taken. Meer punten = zwaardere taak / meer moeite.</p>
+          </div>
+          <div class="budget-bar-card">
+            <div class="budget-header">
+              <span>Budget Status:</span>
+              <strong id="roy-budget-text">1000 / 1000 punten over</strong>
+            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="roy-budget-progress" style="width: 100%;"></div></div>
+          </div>
+          <div class="points-grid" id="step-2-points-grid"></div>
+          <div class="step-actions">
+            <button class="btn btn-outline" id="btn-step-2-prev">⬅ Vorige</button>
+            <button class="btn btn-primary" id="btn-step-2-next">Volgende: Karen's Punten ➔</button>
+          </div>
+        </div>
+
+        <!-- STAP 3: Punten Karen (1000pt) -->
+        <div class="wizard-step-content" id="step-3-content" style="display:none;">
+          <div class="step-header">
+            <h2>Stap 3: Puntenverdeling door Karen (1000 Punten)</h2>
+            <p>Karen verdeelt onafhankelijk haar eigen 1000 punten over dezelfde taken.</p>
+          </div>
+          <div class="budget-bar-card">
+            <div class="budget-header">
+              <span>Budget Status:</span>
+              <strong id="karen-budget-text">1000 / 1000 punten over</strong>
+            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="karen-budget-progress" style="width: 100%;"></div></div>
+          </div>
+          <div class="points-grid" id="step-3-points-grid"></div>
+          <div class="step-actions">
+            <button class="btn btn-outline" id="btn-step-3-prev">⬅ Vorige</button>
+            <button class="btn btn-primary" id="btn-step-3-next">Volgende: Gemiddelden Berekenen ➔</button>
+          </div>
+        </div>
+
+        <!-- STAP 4: Gemiddelden Overzicht -->
+        <div class="wizard-step-content" id="step-4-content" style="display:none;">
+          <div class="step-header">
+            <h2>Stap 4: Gemiddelde Punten per Taak</h2>
+            <p>Hieronder staan de taken gerangschikt op het gewogen gemiddelde van Roy & Karen.</p>
+          </div>
+          <div class="averages-table-card">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Taak Titel</th>
+                  <th>Punten Roy</th>
+                  <th>Punten Karen</th>
+                  <th>Gewogen Gemiddelde</th>
+                </tr>
+              </thead>
+              <tbody id="step-4-averages-tbody"></tbody>
+            </table>
+          </div>
+          <div class="step-actions">
+            <button class="btn btn-outline" id="btn-step-4-prev">⬅ Vorige</button>
+            <button class="btn btn-primary" id="btn-step-4-next">Volgende: Start Keuzeronde ➔</button>
+          </div>
+        </div>
+
+        <!-- STAP 5: Interactieve Keuzeronde (Draft) -->
+        <div class="wizard-step-content" id="step-5-content" style="display:none;">
+          <div class="step-header">
+            <h2>Stap 5: Taken Kiezen & Punten Balanceren</h2>
+            <p id="step-5-instruction">Wie mag er beginnen met kiezen?</p>
+          </div>
+
+          <!-- Starter Keuze Modal/Box indien nog niet gestart -->
+          <div id="starter-choice-box" class="starter-card">
+            <h3>Wie mag er beginnen met kiezen?</h3>
+            <div class="starter-btns">
+              <button class="btn btn-primary btn-lg" id="btn-start-roy">Roy begint</button>
+              <button class="btn btn-primary btn-lg" id="btn-start-karen">Karen begint</button>
+            </div>
+          </div>
+
+          <!-- Draft Arena (actief tijdens kiezen) -->
+          <div id="draft-arena" style="display:none;">
+            <div class="turn-banner" id="turn-banner">
+              <span id="turn-badge" class="badge">Aan de beurt</span>
+              <strong id="turn-text">Karen mag kiezen</strong>
+              <small id="turn-subtext">Kies een taak. De beurt wisselt zodra Roy minder of evenveel punten heeft.</small>
+            </div>
+
+            <!-- Balans Meter -->
+            <div class="balance-container">
+              <div class="player-score roy">
+                <span class="player-name">Roy</span>
+                <span class="player-pts" id="roy-current-pts">0 pt</span>
+                <span class="player-count" id="roy-tasks-count">0 taken</span>
+              </div>
+              <div class="balance-visual">
+                <div class="balance-fill-roy" id="balance-fill-roy" style="width: 50%;"></div>
+                <div class="balance-fill-karen" id="balance-fill-karen" style="width: 50%;"></div>
+              </div>
+              <div class="player-score karen">
+                <span class="player-name">Karen</span>
+                <span class="player-pts" id="karen-current-pts">0 pt</span>
+                <span class="player-count" id="karen-tasks-count">0 taken</span>
+              </div>
+            </div>
+
+            <!-- Available Tasks to Pick -->
+            <div class="draft-pools-grid">
+              <div class="pool-card">
+                <h3>Beschikbare Taken (<span id="available-tasks-count">0</span>)</h3>
+                <div class="available-tasks-list" id="available-tasks-list"></div>
+              </div>
+              <div class="chosen-columns">
+                <div class="player-tasks-box">
+                  <h4>Gekozen door Roy</h4>
+                  <div class="chosen-tasks-list" id="roy-chosen-list"></div>
+                </div>
+                <div class="player-tasks-box">
+                  <h4>Gekozen door Karen</h4>
+                  <div class="chosen-tasks-list" id="karen-chosen-list"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-actions" style="margin-top:16px;">
+              <button class="btn btn-outline" id="btn-step-5-prev">⬅ Terug naar Gemiddelden</button>
+              <button class="btn btn-success" id="btn-step-5-finish" style="display:none;">Naar Eindoverzicht ➔</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STAP 6: Eindoverzicht & Syncen naar Google Tasks -->
+        <div class="wizard-step-content" id="step-6-content" style="display:none;">
+          <div class="step-header">
+            <h2>Stap 6: Eindoverzicht & Synchronisatie</h2>
+            <p>Alle taken zijn verdeeld! Controleer hieronder het resultaat en synchroniseer direct naar Google Tasks.</p>
+          </div>
+
+          <div class="final-summary-grid">
+            <div class="final-card roy">
+              <div class="final-card-header">
+                <h3>11. Kapitein Roy</h3>
+                <span class="badge" id="final-roy-stats">0 taken | 0 pt</span>
+              </div>
+              <ul class="final-tasks-list" id="final-roy-list"></ul>
+            </div>
+
+            <div class="final-card karen">
+              <div class="final-card-header">
+                <h3>12. Kapitein Karen</h3>
+                <span class="badge" id="final-karen-stats">0 taken | 0 pt</span>
+              </div>
+              <ul class="final-tasks-list" id="final-karen-list"></ul>
+            </div>
+          </div>
+
+          <div class="step-actions finale">
+            <button class="btn btn-outline" id="btn-step-6-prev">⬅ Terug naar Keuzeronde</button>
+            <button class="btn btn-success btn-lg" id="btn-apply-division-google">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              Toepassen & Syncen naar Google Tasks! 🚀
+            </button>
+          </div>
+        </div>
+
+      </div>
     </main>
   </div>
 

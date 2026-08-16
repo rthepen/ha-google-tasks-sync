@@ -265,3 +265,98 @@ class SyncEngine:
             return {"status": "error", "error": str(e)}
         finally:
             self.is_syncing = False
+
+    def get_captain_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Haalt alle taken op uit de kapiteinslijsten (11. Kapitein Roy, 12. Kapitein Karen, 13. Wisselende Kapiteins)."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            return []
+        
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+        
+        captain_lists = [l for l in tasklists if any(k in l.get("title", "").lower() for k in ["kapitein", "wisselende"])]
+        
+        tasks_pool = []
+        for cl in captain_lists:
+            list_id = cl["id"]
+            list_title = cl["title"]
+            raw_tasks = self.client.list_tasks(target_account, list_id)
+            for t in raw_tasks:
+                tasks_pool.append({
+                    "id": t.get("id"),
+                    "title": t.get("title", ""),
+                    "notes": t.get("notes", ""),
+                    "status": t.get("status", "needsAction"),
+                    "current_list_id": list_id,
+                    "current_list_title": list_title
+                })
+        
+        # Sort by title
+        tasks_pool.sort(key=lambda x: x.get("title", ""))
+        return tasks_pool
+
+    def apply_captain_division(self, roy_tasks: List[Dict[str, Any]], karen_tasks: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Past de verdeling toe: verplaatst/zet taken in 11. Kapitein Roy en 12. Kapitein Karen."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            raise ValueError("Geen accounts")
+        
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+        lists_by_title = {l["title"]: l["id"] for l in tasklists}
+
+        roy_list_id = None
+        karen_list_id = None
+        for title, lid in lists_by_title.items():
+            if "kapitein roy" in title.lower():
+                roy_list_id = lid
+            elif "kapitein karen" in title.lower():
+                karen_list_id = lid
+
+        if not roy_list_id:
+            rl = self.client.create_tasklist(target_account, "11. Kapitein Roy")
+            roy_list_id = rl["id"] if rl else None
+        if not karen_list_id:
+            kl = self.client.create_tasklist(target_account, "12. Kapitein Karen")
+            karen_list_id = kl["id"] if kl else None
+
+        self.log(f"Start toepassen kapiteinsverdeling: {len(roy_tasks)} voor Roy, {len(karen_tasks)} voor Karen...")
+
+        # 1. Update Roy's tasks
+        for idx, t in enumerate(roy_tasks):
+            t_title = t.get("title")
+            t_notes = t.get("notes", "")
+            t_points = t.get("points")
+            if t_points:
+                t_notes_with_pts = f"Punten: {t_points} | {t_notes}".strip()
+            else:
+                t_notes_with_pts = t_notes
+
+            # Create or update in Roy's list
+            self.client.create_task(target_account, roy_list_id, {
+                "title": t_title,
+                "notes": t_notes_with_pts,
+                "status": t.get("status", "needsAction")
+            })
+            time.sleep(0.05)
+
+        # 2. Update Karen's tasks
+        for idx, t in enumerate(karen_tasks):
+            t_title = t.get("title")
+            t_notes = t.get("notes", "")
+            t_points = t.get("points")
+            if t_points:
+                t_notes_with_pts = f"Punten: {t_points} | {t_notes}".strip()
+            else:
+                t_notes_with_pts = t_notes
+
+            self.client.create_task(target_account, karen_list_id, {
+                "title": t_title,
+                "notes": t_notes_with_pts,
+                "status": t.get("status", "needsAction")
+            })
+            time.sleep(0.05)
+
+        self.log("Kapiteinsverdeling succesvol gesynchroniseerd met Google Tasks!", level="success")
+        return {"success": True, "roy_count": len(roy_tasks), "karen_count": len(karen_tasks)}

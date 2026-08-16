@@ -122,6 +122,28 @@ async def validate_json(payload: Dict[str, Any] = Body(...)):
         "message": f"Geldige JSON structuur gevonden met {len(lists)} elementen."
     }
 
+# --- Captain Tasks Divider API ---
+
+@app.get("/api/divider/tasks")
+async def get_divider_tasks():
+    try:
+        tasks = sync_engine.get_captain_tasks()
+        return {"tasks": tasks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ApplyDivisionPayload(BaseModel):
+    roy_tasks: List[Dict[str, Any]]
+    karen_tasks: List[Dict[str, Any]]
+
+@app.post("/api/divider/apply")
+async def apply_divider_tasks(payload: ApplyDivisionPayload):
+    try:
+        res = sync_engine.apply_captain_division(payload.roy_tasks, payload.karen_tasks)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- Account Management ---
 
 @app.get("/api/accounts")
