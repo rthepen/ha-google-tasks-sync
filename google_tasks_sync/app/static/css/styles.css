@@ -36,8 +36,8 @@ html, body {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  padding: 12px 16px 16px 16px;
-  gap: 10px;
+  padding: 10px 14px;
+  gap: 8px;
 }
 
 /* Top Navbar */
@@ -45,7 +45,7 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
+  padding: 8px 14px;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius);
@@ -55,27 +55,27 @@ html, body {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .logo-icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   background: linear-gradient(135deg, #2f81f7, #1f6feb);
   color: #fff;
-  border-radius: 8px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .logo-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .brand-text h1 {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -102,15 +102,18 @@ html, body {
   50% { opacity: 0.5; }
 }
 
-/* Main Editor Panel - Takes Remaining 100% Height */
+/* Main Split Content Area */
 .content-area {
   flex: 1;
   display: flex;
-  min-height: 0; /* Crucial for nested flex overflow */
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
 }
 
+/* Top Section: JSON Editor (Takes 65-70% height) */
 .editor-panel {
-  flex: 1;
+  flex: 65;
   display: flex;
   flex-direction: column;
   background: var(--panel-bg);
@@ -120,16 +123,15 @@ html, body {
   min-height: 0;
 }
 
-/* Editor Toolbar */
 .editor-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
+  padding: 8px 14px;
   background: #161b22;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-  gap: 12px;
+  gap: 10px;
 }
 
 .toolbar-left {
@@ -139,7 +141,7 @@ html, body {
 }
 
 .editor-title {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
 }
 
@@ -148,14 +150,14 @@ html, body {
   color: var(--accent);
   border: 1px solid rgba(56, 139, 253, 0.3);
   font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 12px;
+  padding: 2px 7px;
+  border-radius: 10px;
   font-weight: 600;
 }
 
 .toolbar-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
@@ -163,12 +165,12 @@ html, body {
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 5px;
+  padding: 5px 10px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  border-radius: 6px;
+  border-radius: 5px;
   cursor: pointer;
   transition: all 0.15s ease;
   border: 1px solid transparent;
@@ -190,9 +192,14 @@ html, body {
   border-color: var(--text-muted);
 }
 
+.btn-sm {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
 .icon {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
 }
 
 /* Editor Container & Editable Textarea */
@@ -211,9 +218,9 @@ html, body {
   background: #090d13;
   color: #79c0ff;
   font-family: var(--font-mono);
-  font-size: 13.5px;
-  line-height: 1.6;
-  padding: 16px 20px;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px 16px;
   border: none;
   resize: none;
   outline: none;
@@ -222,64 +229,118 @@ html, body {
   overflow-y: auto;
   overflow-x: auto;
   cursor: text;
-  user-select: text;
-  -webkit-user-select: text;
 }
 
 #json-textarea:focus {
   background: #06090e;
-  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 /* Custom Scrollbars */
-#json-textarea::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
-
-#json-textarea::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: #090d13;
 }
-
-#json-textarea::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   background: #21262d;
-  border-radius: 6px;
-  border: 3px solid #090d13;
+  border-radius: 5px;
+  border: 2px solid #090d13;
 }
-
-#json-textarea::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover {
   background: #58a6ff;
 }
 
 /* Footer Status Bar */
 .editor-footer {
-  padding: 8px 16px;
+  padding: 6px 14px;
   background: #161b22;
   border-top: 1px solid var(--border-color);
-  font-size: 12px;
+  font-size: 11.5px;
   flex-shrink: 0;
+}
+
+.status-msg { color: var(--text-muted); }
+.status-msg.error { color: #f85149; font-weight: 600; }
+.status-msg.success { color: #3fb950; font-weight: 600; }
+
+/* Bottom Section: Dedicated Debug Panel (Takes 35% height) */
+.debug-panel {
+  flex: 35;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-height: 140px;
+}
+
+.debug-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 6px 14px;
+  background: #1c2128;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
-.status-msg {
-  color: var(--text-muted);
+.debug-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-main);
 }
-.status-msg.error { color: #f85149; font-weight: 600; }
-.status-msg.success { color: #3fb950; font-weight: 600; }
+
+.debug-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.debug-auto-tag {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.terminal-log {
+  flex: 1;
+  background: #090d13;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-entry {
+  color: #a5d6ff;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.log-entry.level-error { color: #f85149; font-weight: bold; }
+.log-entry.level-warning { color: #d29922; }
+.log-entry.level-success { color: #3fb950; }
 
 /* Toast */
 .toast {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: 20px;
+  right: 20px;
   background: #1f6feb;
   color: #fff;
-  padding: 10px 18px;
+  padding: 9px 16px;
   border-radius: 6px;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   opacity: 0;
   transform: translateY(20px);

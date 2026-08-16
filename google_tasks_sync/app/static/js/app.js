@@ -16,6 +16,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnReloadJson = document.getElementById('btn-reload-json');
   const btnApplyJson = document.getElementById('btn-apply-json');
 
+  // Debug elements
+  const logsContainer = document.getElementById('logs-container');
+  const debugLastSync = document.getElementById('debug-last-sync');
+  const btnClearLogs = document.getElementById('btn-clear-logs');
+  const btnRefreshLogs = document.getElementById('btn-refresh-logs');
+
   // Toast
   const toast = document.getElementById('toast');
 
@@ -27,6 +33,45 @@ document.addEventListener('DOMContentLoaded', () => {
       toast.classList.remove('show');
     }, 3000);
   }
+
+  function appendClientLog(msg, level = 'info') {
+    const time = new Date().toTimeString().split(' ')[0];
+    const el = document.createElement('div');
+    el.className = `log-entry level-${level}`;
+    el.textContent = `[${time}] [CLIENT-${level.toUpperCase()}] ${msg}`;
+    logsContainer.prepend(el);
+  }
+
+  // --- Fetch Logs and Status from Server ---
+  async function loadLogsAndStatus() {
+    try {
+      const res = await fetch(`${rootPath}/api/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      debugLastSync.textContent = `Laatste sync: ${data.last_sync_time || 'Nog niet'}`;
+
+      if (data.logs && data.logs.length > 0) {
+        logsContainer.innerHTML = data.logs.map(l => 
+          `<div class="log-entry level-${l.level}">[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}</div>`
+        ).join('');
+      } else {
+        logsContainer.innerHTML = '<div class="log-entry">[SYSTEM] Geen recente server logs.</div>';
+      }
+    } catch (e) {
+      appendClientLog('Fout bij ophalen server logs: ' + e.message, 'error');
+    }
+  }
+
+  btnClearLogs.addEventListener('click', () => {
+    logsContainer.innerHTML = '<div class="log-entry">[SYSTEM] Logboek gewist.</div>';
+    showToast('Logboek gewist');
+  });
+
+  btnRefreshLogs.addEventListener('click', () => {
+    loadLogsAndStatus();
+    showToast('Logs ververst');
+  });
 
   // --- Handle Tab Key in Textarea ---
   jsonTextarea.addEventListener('keydown', (e) => {
@@ -47,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
       jsonStatusMsg.textContent = `✓ Geldige JSON (${totalLists} lijsten). Klaar om toe te passen.`;
       jsonStatusMsg.className = 'status-msg success';
     } catch (err) {
-      jsonStatusMsg.textContent = `⚠ Bezig met typen / JSON syntax niet af: ${err.message}`;
+      jsonStatusMsg.textContent = `⚠ Bezig met typen: ${err.message}`;
       jsonStatusMsg.className = 'status-msg error';
     }
   });
@@ -57,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     jsonStatusMsg.textContent = 'JSON ophalen vanuit Google Tasks...';
     jsonStatusMsg.className = 'status-msg';
     syncBadge.textContent = 'Laden...';
+    appendClientLog('Ophalen van taken JSON vanuit backend...');
     
     try {
       const res = await fetch(`${rootPath}/api/json/export`);
@@ -73,10 +119,13 @@ document.addEventListener('DOMContentLoaded', () => {
       jsonStatusMsg.textContent = `✓ Geladen: ${totalTasks} taken in ${totalLists} lijsten.`;
       jsonStatusMsg.className = 'status-msg success';
       syncBadge.textContent = 'Klaar';
+      appendClientLog(`JSON succesvol ingeladen: ${totalTasks} taken verdeeld over ${totalLists} lijsten.`, 'success');
+      loadLogsAndStatus();
     } catch (e) {
       jsonStatusMsg.textContent = '✗ Fout bij ophalen JSON: ' + e.message;
       jsonStatusMsg.className = 'status-msg error';
       syncBadge.textContent = 'Fout';
+      appendClientLog('Fout bij inladen JSON: ' + e.message, 'error');
     }
   }
 
@@ -85,10 +134,12 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       await navigator.clipboard.writeText(jsonTextarea.value);
       showToast('JSON gekopieerd naar klembord! 📋');
+      appendClientLog('JSON gekopieerd naar klembord.', 'info');
     } catch (e) {
       jsonTextarea.select();
       document.execCommand('copy');
       showToast('JSON gekopieerd! 📋');
+      appendClientLog('JSON gekopieerd via fallback select.', 'info');
     }
   });
 
@@ -98,6 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const text = await navigator.clipboard.readText();
       if (!text || !text.trim()) {
         showToast('Klembord is leeg', true);
+        appendClientLog('Plakken mislukt: klembord is leeg.', 'warning');
         return;
       }
       try {
@@ -106,15 +158,18 @@ document.addEventListener('DOMContentLoaded', () => {
         jsonStatusMsg.textContent = '✓ JSON geplakt en geformatteerd vanaf klembord!';
         jsonStatusMsg.className = 'status-msg success';
         showToast('JSON geplakt vanaf klembord! 📋');
+        appendClientLog('Geldige JSON geplakt vanaf klembord.', 'success');
       } catch (err) {
         jsonTextarea.value = text;
         jsonStatusMsg.textContent = '⚠ Geplakte tekst is geen geldige JSON: ' + err.message;
         jsonStatusMsg.className = 'status-msg error';
         showToast('Let op: Geplakte tekst bevat syntaxfouten', true);
+        appendClientLog('Geplakte JSON bevat syntaxfout: ' + err.message, 'error');
       }
     } catch (e) {
       jsonTextarea.focus();
       showToast('Plak direct met Ctrl+V / Cmd+V in het tekstveld');
+      appendClientLog('Direct plakken vereist (toegang geweigerd door browser).', 'warning');
     }
   });
 
@@ -122,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnReloadJson.addEventListener('click', () => {
     loadJsonExport();
     showToast('JSON herladen vanuit Google');
+    appendClientLog('Herladen vanuit Google Tasks getriggerd.');
   });
 
   // --- 4. Toepassen / Syncen naar Google Tasks ---
@@ -133,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
       jsonStatusMsg.textContent = '✗ Ongeldige JSON syntax: ' + e.message;
       jsonStatusMsg.className = 'status-msg error';
       showToast('Kan niet toepassen: ongeldige JSON!', true);
+      appendClientLog('Toepassen geannuleerd: ongeldige JSON syntax: ' + e.message, 'error');
       return;
     }
 
@@ -143,6 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     jsonStatusMsg.textContent = 'Bezig met toepassen en synchroniseren naar Google Tasks...';
     jsonStatusMsg.className = 'status-msg';
     showToast('Bezig met synchroniseren naar Google Tasks...');
+    appendClientLog('Start synchronisatie van gewijzigde JSON naar Google Tasks...', 'info');
 
     try {
       const res = await fetch(`${rootPath}/api/json/import`, {
@@ -157,7 +215,11 @@ document.addEventListener('DOMContentLoaded', () => {
         jsonStatusMsg.className = 'status-msg success';
         syncBadge.textContent = 'Klaar';
         syncBadge.className = 'badge';
-        setTimeout(loadJsonExport, 1000);
+        appendClientLog('Google Tasks API import succesvol afgerond: ' + JSON.stringify(result.results), 'success');
+        setTimeout(() => {
+          loadJsonExport();
+          loadLogsAndStatus();
+        }, 1000);
       } else {
         throw new Error(result.error || 'Onbekende fout');
       }
@@ -167,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
       syncBadge.textContent = 'Fout';
       syncBadge.className = 'badge';
       showToast('Fout bij syncen: ' + e.message, true);
+      appendClientLog('Synchronisatiefout: ' + e.message, 'error');
     } finally {
       btnApplyJson.disabled = false;
       btnSyncNow.disabled = false;
@@ -178,4 +241,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial load
   loadJsonExport();
+  loadLogsAndStatus();
+  setInterval(loadLogsAndStatus, 10000); // Polling logs every 10s
 });

@@ -1,6 +1,6 @@
 name: "Google Tasks Multi-Account Sync"
-description: "Automatically sync Google Tasks across multiple Google accounts with a live JSON editor and Ingress Web UI"
-version: "1.0.4"
+description: "Automatically sync Google Tasks across multiple Google accounts with a live JSON editor, Debug Log and Ingress Web UI"
+version: "1.0.5"
 slug: "google_tasks_sync"
 init: false
 arch:

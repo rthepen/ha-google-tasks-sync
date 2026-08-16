@@ -12,7 +12,7 @@
 <body data-root-path="{{ root_path }}">
   
   <div class="app-container">
-    <!-- Header -->
+    <!-- Top Header Bar -->
     <header class="navbar">
       <div class="brand">
         <div class="logo-icon">
@@ -32,8 +32,10 @@
       </div>
     </header>
 
-    <!-- Main Clean JSON Editor Area -->
+    <!-- Main Content Area: Editor + Debug Log -->
     <main class="content-area">
+      
+      <!-- Top Section: JSON Editor Panel -->
       <div class="editor-panel">
         <div class="editor-toolbar">
           <div class="toolbar-left">
@@ -69,6 +71,25 @@
           <div id="json-status-msg" class="status-msg">Gereed: Bewerk, kopieer of plak JSON en klik op Toepassen.</div>
         </div>
       </div>
+
+      <!-- Bottom Section: Complete Debug & Sync Log Panel -->
+      <div class="debug-panel">
+        <div class="debug-header">
+          <div class="debug-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+            <span>Live Debug & Synchronisatie Log</span>
+          </div>
+          <div class="debug-actions">
+            <span class="debug-auto-tag" id="debug-last-sync">Laatste sync: -</span>
+            <button class="btn btn-sm btn-outline" id="btn-clear-logs">Logs Wissen</button>
+            <button class="btn btn-sm btn-outline" id="btn-refresh-logs">Verversen</button>
+          </div>
+        </div>
+        <div class="terminal-log" id="logs-container">
+          <div class="log-entry">[SYSTEM] Debug logboek geïnitialiseerd...</div>
+        </div>
+      </div>
+
     </main>
   </div>
 
