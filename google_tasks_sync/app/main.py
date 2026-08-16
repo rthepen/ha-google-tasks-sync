@@ -41,7 +41,8 @@ if os.path.exists(options_file):
         pass
 
 if auto_sync:
-    sync_engine.start_scheduler(interval_minutes=sync_interval)
+    sync_engine.sync_interval = sync_interval * 60
+    sync_engine.start_periodic_sync()
 
 # Global error catching middleware
 @app.middleware("http")
