@@ -304,9 +304,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const jsonStatsTag = document.getElementById('json-stats-tag');
   
   const btnCopyJson = document.getElementById('btn-copy-json');
+  const btnFormatJson = document.getElementById('btn-format-json');
   const btnPasteJson = document.getElementById('btn-paste-json');
   const btnReloadJson = document.getElementById('btn-reload-json');
-  const btnApplyJson = document.getElementById('btn-apply-json');
+  const btnApplyJson = document.getElementById('btn-save-json') || document.getElementById('btn-apply-json');
 
   const logsContainer = document.getElementById('debug-log-view');
   const debugLastSync = document.getElementById('debug-last-sync');
@@ -399,46 +400,68 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  btnCopyJson.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(jsonTextarea.value);
-      showToast('JSON gekopieerd naar klembord! 📋');
-    } catch (e) {
-      jsonTextarea.select();
-      document.execCommand('copy');
-      showToast('JSON gekopieerd! 📋');
-    }
-  });
-
-  btnPasteJson.addEventListener('click', async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (!text || !text.trim()) {
-        showToast('Klembord is leeg', true);
-        return;
-      }
+  if (btnCopyJson) {
+    btnCopyJson.addEventListener('click', async () => {
       try {
-        const parsed = JSON.parse(text);
-        jsonTextarea.value = JSON.stringify(parsed, null, 2);
-        jsonStatusMsg.textContent = '✓ JSON geplakt en geformatteerd vanaf klembord!';
-        jsonStatusMsg.className = 'status-msg success';
-        showToast('JSON geplakt vanaf klembord! 📋');
-      } catch (err) {
-        jsonTextarea.value = text;
-        jsonStatusMsg.textContent = '⚠ Geplakte tekst is geen geldige JSON: ' + err.message;
-        jsonStatusMsg.className = 'status-msg error';
-        showToast('Let op: Geplakte tekst bevat syntaxfouten', true);
+        await navigator.clipboard.writeText(jsonTextarea.value);
+        showToast('JSON gekopieerd naar klembord! 📋');
+      } catch (e) {
+        jsonTextarea.select();
+        document.execCommand('copy');
+        showToast('JSON gekopieerd! 📋');
       }
-    } catch (e) {
-      jsonTextarea.focus();
-      showToast('Plak direct met Ctrl+V / Cmd+V in het tekstveld');
-    }
-  });
+    });
+  }
 
-  btnReloadJson.addEventListener('click', () => {
-    loadJsonExport();
-    showToast('JSON herladen vanuit Google');
-  });
+  if (btnFormatJson) {
+    btnFormatJson.addEventListener('click', () => {
+      try {
+        const parsed = JSON.parse(jsonTextarea.value);
+        jsonTextarea.value = JSON.stringify(parsed, null, 2);
+        jsonStatusMsg.textContent = '✓ JSON geformatteerd en gevalideerd!';
+        jsonStatusMsg.className = 'status-msg success';
+        showToast('JSON netjes geformatteerd! ✨');
+      } catch (e) {
+        jsonStatusMsg.textContent = '⚠ Syntaxfout: ' + e.message;
+        jsonStatusMsg.className = 'status-msg error';
+        showToast('Ongeldige JSON syntax', true);
+      }
+    });
+  }
+
+  if (btnPasteJson) {
+    btnPasteJson.addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text || !text.trim()) {
+          showToast('Klembord is leeg', true);
+          return;
+        }
+        try {
+          const parsed = JSON.parse(text);
+          jsonTextarea.value = JSON.stringify(parsed, null, 2);
+          jsonStatusMsg.textContent = '✓ JSON geplakt en geformatteerd vanaf klembord!';
+          jsonStatusMsg.className = 'status-msg success';
+          showToast('JSON geplakt vanaf klembord! 📋');
+        } catch (err) {
+          jsonTextarea.value = text;
+          jsonStatusMsg.textContent = '⚠ Geplakte tekst is geen geldige JSON: ' + err.message;
+          jsonStatusMsg.className = 'status-msg error';
+          showToast('Let op: Geplakte tekst bevat syntaxfouten', true);
+        }
+      } catch (e) {
+        jsonTextarea.focus();
+        showToast('Plak direct met Ctrl+V / Cmd+V in het tekstveld');
+      }
+    });
+  }
+
+  if (btnReloadJson) {
+    btnReloadJson.addEventListener('click', () => {
+      loadJsonExport();
+      showToast('JSON herladen vanuit Google');
+    });
+  }
 
   async function applyJsonToGoogle() {
     let parsed;
@@ -493,8 +516,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  btnApplyJson.addEventListener('click', applyJsonToGoogle);
-  btnSyncNow.addEventListener('click', applyJsonToGoogle);
+  if (btnApplyJson) btnApplyJson.addEventListener('click', applyJsonToGoogle);
+  if (btnSyncNow) btnSyncNow.addEventListener('click', applyJsonToGoogle);
 
   // Initial loads
   loadManagerTasks();
