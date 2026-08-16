@@ -88,7 +88,7 @@ async def get_status():
         "is_syncing": sync_engine.is_syncing,
         "last_sync_time": sync_engine.last_sync_time,
         "last_sync_status": sync_engine.last_sync_status,
-        "logs": sync_engine.sync_logs[:50]
+        "logs": sync_engine.logs[:50]
     }
 
 @app.post("/api/sync/now")
