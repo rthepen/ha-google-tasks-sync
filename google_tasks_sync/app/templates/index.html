@@ -125,11 +125,22 @@
         <div class="wizard-step-content" id="step-1-content">
           <div class="step-header">
             <h2>Stap 1: Kies welke taken meedoen als Wisselende Kapitein</h2>
-            <p>Vink hieronder de taken aan die jullie in deze ronde willen verdelen.</p>
+            <p>Selecteer hieronder welke taken jullie in deze ronde willen verdelen. Gebruik de filters om snel tussen de lijsten te wisselen.</p>
           </div>
+          
+          <!-- Lijst Filters -->
+          <div class="list-filters-bar" id="step-1-filters">
+            <button class="filter-tab active" data-filter="all">Alle Taken (<span id="count-filter-all">0</span>)</button>
+            <button class="filter-tab" data-filter="13. Wisselende Kapiteins">13. Wisselende Kapiteins (<span id="count-filter-13">0</span>)</button>
+            <button class="filter-tab" data-filter="11. Kapitein Roy">11. Kapitein Roy (<span id="count-filter-11">0</span>)</button>
+            <button class="filter-tab" data-filter="12. Kapitein Karen">12. Kapitein Karen (<span id="count-filter-12">0</span>)</button>
+            <button class="filter-tab" data-filter="09. Roy Persoonlijk">09. Roy Persoonlijk (<span id="count-filter-09">0</span>)</button>
+            <button class="filter-tab" data-filter="10. Karen Persoonlijk">10. Karen Persoonlijk (<span id="count-filter-10">0</span>)</button>
+          </div>
+
           <div class="step-toolbar">
-            <button class="btn btn-sm btn-outline" id="btn-select-all-tasks">Alles Selecteren</button>
-            <button class="btn btn-sm btn-outline" id="btn-deselect-all-tasks">Alles Deselecteren</button>
+            <button class="btn btn-sm btn-outline" id="btn-select-all-tasks">Alles in filter selecteren</button>
+            <button class="btn btn-sm btn-outline" id="btn-deselect-all-tasks">Alles in filter deselecteren</button>
             <span class="tag" id="selected-tasks-count">0 taken geselecteerd</span>
           </div>
           <div class="tasks-selection-list" id="step-1-tasks-list">

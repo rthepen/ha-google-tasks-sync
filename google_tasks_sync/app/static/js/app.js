@@ -278,13 +278,45 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) throw new Error('Kon kapiteinstaken niet ophalen');
       const data = await res.json();
       allCaptainTasks = data.tasks || [];
+      setupStep1Filters();
       renderStep1Tasks();
     } catch (e) {
       container.innerHTML = `<div class="status-msg error">Fout: ${e.message}</div>`;
     }
   }
 
-  // --- STAP 1: Select Tasks ---
+  // --- STAP 1: Select Tasks with List Filter Tabs ---
+  let currentListFilter = 'all';
+
+  function setupStep1Filters() {
+    const filtersContainer = document.getElementById('step-1-filters');
+    if (!filtersContainer) return;
+
+    // Update count badges
+    const countAll = allCaptainTasks.length;
+    const count13 = allCaptainTasks.filter(t => t.current_list_title.includes('13')).length;
+    const count11 = allCaptainTasks.filter(t => t.current_list_title.includes('11')).length;
+    const count12 = allCaptainTasks.filter(t => t.current_list_title.includes('12')).length;
+    const count09 = allCaptainTasks.filter(t => t.current_list_title.includes('09')).length;
+    const count10 = allCaptainTasks.filter(t => t.current_list_title.includes('10')).length;
+
+    document.getElementById('count-filter-all').textContent = countAll;
+    document.getElementById('count-filter-13').textContent = count13;
+    document.getElementById('count-filter-11').textContent = count11;
+    document.getElementById('count-filter-12').textContent = count12;
+    document.getElementById('count-filter-09').textContent = count09;
+    document.getElementById('count-filter-10').textContent = count10;
+
+    filtersContainer.querySelectorAll('.filter-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filtersContainer.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentListFilter = btn.dataset.filter;
+        renderStep1Tasks();
+      });
+    });
+  }
+
   function renderStep1Tasks() {
     const container = document.getElementById('step-1-tasks-list');
     if (!allCaptainTasks.length) {
@@ -292,24 +324,36 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    container.innerHTML = allCaptainTasks.map((t, idx) => `
-      <div class="task-select-item ${selectedTasks.some(st => st.title === t.title) ? 'selected' : ''}" data-idx="${idx}">
-        <input type="checkbox" id="chk-task-${idx}" ${selectedTasks.some(st => st.title === t.title) ? 'checked' : ''}>
-        <div class="task-select-item-info">
-          <div class="task-select-item-title">${t.title}</div>
-          <div class="task-select-item-notes">${t.current_list_title || 'Kapitein'} ${t.notes ? '• ' + t.notes : ''}</div>
+    const filteredTasks = (currentListFilter === 'all')
+      ? allCaptainTasks
+      : allCaptainTasks.filter(t => t.current_list_title.includes(currentListFilter.split('.')[0]));
+
+    if (filteredTasks.length === 0) {
+      container.innerHTML = '<div class="status-msg">Geen taken in deze lijst.</div>';
+      return;
+    }
+
+    container.innerHTML = filteredTasks.map((t) => {
+      const isSelected = selectedTasks.some(st => st.title === t.title);
+      return `
+        <div class="task-select-item ${isSelected ? 'selected' : ''}" data-title="${t.title}">
+          <input type="checkbox" ${isSelected ? 'checked' : ''}>
+          <div class="task-select-item-info">
+            <div class="task-select-item-title">${t.title}</div>
+            <div class="task-select-item-notes"><span class="tag" style="font-size:10px; padding:1px 5px;">${t.current_list_title}</span> ${t.notes ? '• ' + t.notes : ''}</div>
+          </div>
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     // Checkbox click handlers
     container.querySelectorAll('.task-select-item').forEach(el => {
       el.addEventListener('click', (e) => {
-        const idx = parseInt(el.dataset.idx);
+        const title = el.dataset.title;
         const chk = el.querySelector('input[type="checkbox"]');
         if (e.target !== chk) chk.checked = !chk.checked;
         
-        const task = allCaptainTasks[idx];
+        const task = allCaptainTasks.find(t => t.title === title);
         if (chk.checked) {
           el.classList.add('selected');
           if (!selectedTasks.some(st => st.title === task.title)) selectedTasks.push(task);
@@ -329,12 +373,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('btn-select-all-tasks').addEventListener('click', () => {
-    selectedTasks = [...allCaptainTasks];
+    const filteredTasks = (currentListFilter === 'all')
+      ? allCaptainTasks
+      : allCaptainTasks.filter(t => t.current_list_title.includes(currentListFilter.split('.')[0]));
+
+    filteredTasks.forEach(t => {
+      if (!selectedTasks.some(st => st.title === t.title)) selectedTasks.push(t);
+    });
     renderStep1Tasks();
   });
 
   document.getElementById('btn-deselect-all-tasks').addEventListener('click', () => {
-    selectedTasks = [];
+    const filteredTasks = (currentListFilter === 'all')
+      ? allCaptainTasks
+      : allCaptainTasks.filter(t => t.current_list_title.includes(currentListFilter.split('.')[0]));
+
+    const filteredTitles = new Set(filteredTasks.map(t => t.title));
+    selectedTasks = selectedTasks.filter(t => !filteredTitles.has(t.title));
     renderStep1Tasks();
   });
 

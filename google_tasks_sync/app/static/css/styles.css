@@ -354,6 +354,41 @@ html, body {
 .step-header h2 { font-size: 17px; font-weight: 700; color: var(--text-main); margin-bottom: 4px; }
 .step-header p { font-size: 13px; color: var(--text-muted); }
 
+/* List Filter Tabs */
+.list-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: #090d13;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.filter-tab {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-tab:hover {
+  background: #161b22;
+  color: var(--text-main);
+}
+
+.filter-tab.active {
+  background: #161b22;
+  border-color: var(--border-color);
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
 .step-toolbar {
   display: flex;
   align-items: center;

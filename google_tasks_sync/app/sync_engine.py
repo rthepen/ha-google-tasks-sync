@@ -267,7 +267,7 @@ class SyncEngine:
             self.is_syncing = False
 
     def get_captain_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Haalt alle taken op uit de kapiteinslijsten (11. Kapitein Roy, 12. Kapitein Karen, 13. Wisselende Kapiteins)."""
+        """Haalt alle taken op uit de relevante lijsten (09. Roy Persoonlijk, 10. Karen Persoonlijk, 11. Kapitein Roy, 12. Kapitein Karen, 13. Wisselende Kapiteins)."""
         accounts = self.client.get_accounts()
         if not accounts:
             return []
@@ -275,7 +275,8 @@ class SyncEngine:
         target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
         tasklists = self.client.list_tasklists(target_account)
         
-        captain_lists = [l for l in tasklists if any(k in l.get("title", "").lower() for k in ["kapitein", "wisselende"])]
+        target_keywords = ["persoonlijk", "kapitein", "wisselende"]
+        captain_lists = [l for l in tasklists if any(k in l.get("title", "").lower() for k in target_keywords)]
         
         tasks_pool = []
         for cl in captain_lists:
@@ -293,7 +294,7 @@ class SyncEngine:
                 })
         
         # Sort by title
-        tasks_pool.sort(key=lambda x: x.get("title", ""))
+        tasks_pool.sort(key=lambda x: (x.get("current_list_title", ""), x.get("title", "")))
         return tasks_pool
 
     def apply_captain_division(self, roy_tasks: List[Dict[str, Any]], karen_tasks: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
