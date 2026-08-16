@@ -161,6 +161,29 @@ async def create_task(payload: CreateTaskPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class UpdateTaskPayload(BaseModel):
+    task_id: str
+    list_id: str
+    title: str
+    notes: Optional[str] = ""
+    due: Optional[str] = None
+    target_list_title: Optional[str] = None
+
+@app.post("/api/tasks/update")
+async def update_task(payload: UpdateTaskPayload):
+    try:
+        res = sync_engine.update_single_task(
+            task_id=payload.task_id,
+            list_id=payload.list_id,
+            title=payload.title,
+            notes=payload.notes or "",
+            due=payload.due,
+            target_list_title=payload.target_list_title
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 class BatchReassignPayload(BaseModel):
     moves: List[Dict[str, Any]]
 

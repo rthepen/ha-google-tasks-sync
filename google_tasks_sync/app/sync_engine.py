@@ -310,6 +310,7 @@ class SyncEngine:
                     "title": t.get("title", ""),
                     "notes": t.get("notes", ""),
                     "status": t.get("status", "needsAction"),
+                    "due": t.get("due"),
                     "current_list_id": list_id,
                     "current_list_title": list_title
                 })
@@ -342,6 +343,7 @@ class SyncEngine:
                         "title": t.get("title", ""),
                         "notes": t.get("notes", ""),
                         "status": t.get("status", "needsAction"),
+                        "due": t.get("due"),
                         "current_list_id": list_id,
                         "current_list_title": list_title
                     })
@@ -386,11 +388,14 @@ class SyncEngine:
             # Avoid duplicate task
             if t.get("title", "").strip() == title.strip():
                 # Task already exists, update it instead
-                self.client.update_task(target_account, list_id, t["id"], {
+                update_body = {
                     "title": title.strip(),
                     "notes": final_notes,
                     "status": "needsAction"
-                })
+                }
+                if due:
+                    update_body["due"] = f"{due}T00:00:00.000Z" if len(due) == 10 else due
+                self.client.update_task(target_account, list_id, t["id"], update_body)
                 self.log(f"Bestaande taak '{title}' bijgewerkt in '{list_title}'")
                 return {"success": True, "task_id": t["id"], "action": "updated"}
 
@@ -401,7 +406,7 @@ class SyncEngine:
             "status": "needsAction"
         }
         if due:
-            body["due"] = due
+            body["due"] = f"{due}T00:00:00.000Z" if len(due) == 10 else due
 
         created = self.client.create_task(target_account, list_id, body)
         if not created or "id" not in created:
@@ -416,8 +421,42 @@ class SyncEngine:
             except Exception:
                 pass
 
-        self.log(f"Nieuwe taak '{title}' aangemaakt in '{list_title}' (sub: {clean_sub_name or 'Geen'})", level="success")
+        self.log(f"Nieuwe taak '{title}' aangemaakt in '{list_title}' (sub: {clean_sub_name or 'Geen'}, deadline: {due or 'Geen'})", level="success")
         return {"success": True, "task_id": new_task_id, "action": "created"}
+
+    def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Wijzigt titel, notities, deadline of verplaatst een taak naar een andere lijst."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            raise ValueError("Geen accounts geconfigureerd")
+        
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+        lists_by_title = {l["title"]: l["id"] for l in tasklists}
+
+        body = {
+            "title": title.strip(),
+            "notes": notes.strip(),
+            "status": "needsAction"
+        }
+        if due:
+            body["due"] = f"{due}T00:00:00.000Z" if len(due) == 10 else due
+        else:
+            body["due"] = None
+
+        dest_list_id = lists_by_title.get(target_list_title) if target_list_title else list_id
+        
+        if dest_list_id and dest_list_id != list_id:
+            # Move to new list
+            created = self.client.create_task(target_account, dest_list_id, body)
+            if task_id and list_id:
+                self.client.delete_task(target_account, list_id, task_id)
+            self.log(f"Taak '{title}' gewijzigd en verplaatst naar '{target_list_title}'", level="success")
+            return {"success": True, "task_id": created.get("id") if created else None}
+        else:
+            updated = self.client.update_task(target_account, list_id, task_id, body)
+            self.log(f"Taak '{title}' succesvol gewijzigd", level="success")
+            return {"success": True, "task_id": task_id}
 
     def renumber_list_tasks(self, account_id: str, list_id: str, list_title: str) -> None:
         """Her-nummert alle taken binnen een lijst netjes van 01 t/m N (en behoudt sublijst prefix indien aanwezig)."""

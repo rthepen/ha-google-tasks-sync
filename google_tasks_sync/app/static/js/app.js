@@ -214,12 +214,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Clean display notes
         const cleanNotes = (t.notes || '').replace(/^\[(.*?)\]\s*/, '');
+        const dueDateFormatted = t.due ? new Date(t.due).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
 
         html += `
           <tr class="${isChanged ? 'modified' : ''}" data-id="${t.id}">
             <td style="padding-left:24px;">
-              <strong>${t.title}</strong>
-              ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${cleanNotes}</div>` : ''}
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <div>
+                  <strong>${t.title}</strong>
+                  ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${cleanNotes}</div>` : ''}
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                  ${t.due ? `<span class="badge" style="font-size:10.5px; background:rgba(210,153,34,0.15); color:#d29922; border-color:rgba(210,153,34,0.4);">📅 ${dueDateFormatted}</span>` : ''}
+                  <button class="btn btn-sm btn-outline btn-edit-task" data-id="${t.id}" title="Taak bewerken">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    Wijzig
+                  </button>
+                </div>
+              </div>
             </td>
             <td>
               <span class="tag" style="font-size:11px;">${t.current_list_title}</span>
@@ -235,6 +247,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     managerTbody.innerHTML = html;
+
+    // Attach edit button listeners
+    managerTbody.querySelectorAll('.btn-edit-task').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tId = btn.dataset.id;
+        const task = managerTasks.find(t => t.id === tId);
+        if (task) openEditTaskModal(task);
+      });
+    });
 
     // Attach change handlers
     managerTbody.querySelectorAll('.task-list-select').forEach(sel => {
@@ -1238,6 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const addTaskList = document.getElementById('add-task-list');
   const addTaskSublist = document.getElementById('add-task-sublist');
   const addTaskCustomSublist = document.getElementById('add-task-custom-sublist');
+  const addTaskDue = document.getElementById('add-task-due');
   const addTaskNotes = document.getElementById('add-task-notes');
 
   function populateAddTaskSublists() {
@@ -1247,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', () => {
       allFoundSublists.add(extractSublist(t.notes, t.current_list_title, t.title));
     });
 
-    const sorted = Array.from(allFoundSublists).filter(s => s && s !== 'Algemeen').sort();
+    const sorted = Array.from(allFoundSublists).filter(s => s && s !== 'Algemeen').sort(naturalSort);
     addTaskSublist.innerHTML = '<option value="">Geen / Nieuw hieronder typen</option>' + 
       sorted.map(s => `<option value="${s}">📂 ${s}</option>`).join('');
   }
@@ -1257,6 +1279,7 @@ document.addEventListener('DOMContentLoaded', () => {
     populateAddTaskSublists();
     if (addTaskTitle) addTaskTitle.value = '';
     if (addTaskCustomSublist) addTaskCustomSublist.value = '';
+    if (addTaskDue) addTaskDue.value = '';
     if (addTaskNotes) addTaskNotes.value = '';
     if (addTaskList) addTaskList.value = '05. Wisselende Kapiteins';
     addTaskModal.style.display = 'flex';
@@ -1284,6 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const listTitle = addTaskList.value;
       const chosenSublist = (addTaskCustomSublist.value || '').trim() || addTaskSublist.value;
       const notes = (addTaskNotes.value || '').trim();
+      const due = addTaskDue ? addTaskDue.value : null;
 
       btnSubmitAddTask.disabled = true;
       btnSubmitAddTask.textContent = 'Bezig met toevoegen aan Google Tasks...';
@@ -1297,7 +1321,8 @@ document.addEventListener('DOMContentLoaded', () => {
             title: title,
             list_title: listTitle,
             sublist_name: chosenSublist,
-            notes: notes
+            notes: notes,
+            due: due || null
           })
         });
 
@@ -1317,6 +1342,102 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSubmitAddTask.innerHTML = `
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
           Taak Toevoegen aan Google Tasks 🚀
+        `;
+      }
+    });
+  }
+
+  // =========================================================================
+  // 5. TAAK BEWERKEN / WIJZIGEN MODAL LOGIC
+  // =========================================================================
+  const editTaskModal = document.getElementById('edit-task-modal');
+  const btnCloseEditTaskModal = document.getElementById('btn-close-edit-task-modal');
+  const btnCancelEditTask = document.getElementById('btn-cancel-edit-task');
+  const btnSubmitEditTask = document.getElementById('btn-submit-edit-task');
+
+  const editTaskId = document.getElementById('edit-task-id');
+  const editTaskListId = document.getElementById('edit-task-list-id');
+  const editTaskTitle = document.getElementById('edit-task-title');
+  const editTaskList = document.getElementById('edit-task-list');
+  const editTaskDue = document.getElementById('edit-task-due');
+  const editTaskNotes = document.getElementById('edit-task-notes');
+
+  function openEditTaskModal(task) {
+    if (!editTaskModal || !task) return;
+    editTaskId.value = task.id;
+    editTaskListId.value = task.current_list_id;
+    editTaskTitle.value = task.title;
+    editTaskList.value = task.current_list_title;
+    editTaskNotes.value = task.notes || '';
+    
+    // Parse date if present: 2026-08-16T00:00:00.000Z -> 2026-08-16
+    if (task.due) {
+      editTaskDue.value = task.due.substring(0, 10);
+    } else {
+      editTaskDue.value = '';
+    }
+
+    editTaskModal.style.display = 'flex';
+    editTaskTitle.focus();
+  }
+
+  function closeEditTaskModal() {
+    if (editTaskModal) editTaskModal.style.display = 'none';
+  }
+
+  if (btnCloseEditTaskModal) btnCloseEditTaskModal.addEventListener('click', closeEditTaskModal);
+  if (btnCancelEditTask) btnCancelEditTask.addEventListener('click', closeEditTaskModal);
+
+  if (btnSubmitEditTask) {
+    btnSubmitEditTask.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const taskId = editTaskId.value;
+      const listId = editTaskListId.value;
+      const title = (editTaskTitle.value || '').trim();
+      if (!title) {
+        showToast('Vul een geldige titel in!', true);
+        editTaskTitle.focus();
+        return;
+      }
+
+      const targetList = editTaskList.value;
+      const notes = (editTaskNotes.value || '').trim();
+      const due = editTaskDue.value ? editTaskDue.value : null;
+
+      btnSubmitEditTask.disabled = true;
+      btnSubmitEditTask.textContent = 'Wijzigingen opslaan in Google Tasks...';
+      showToast('Wijzigingen opslaan in Google Tasks...');
+
+      try {
+        const res = await fetch(`${rootPath}/api/tasks/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            task_id: taskId,
+            list_id: listId,
+            title: title,
+            notes: notes,
+            due: due,
+            target_list_title: targetList
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          showToast(`✓ Taak '${title}' succesvol bijgewerkt! 💾`);
+          closeEditTaskModal();
+          loadManagerTasks();
+          loadJsonExport();
+        } else {
+          throw new Error(data.detail || data.error || 'Fout bij bijwerken');
+        }
+      } catch (err) {
+        showToast('Fout: ' + err.message, true);
+      } finally {
+        btnSubmitEditTask.disabled = false;
+        btnSubmitEditTask.innerHTML = `
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          Wijzigingen Opslaan naar Google Tasks 💾
         `;
       }
     });
