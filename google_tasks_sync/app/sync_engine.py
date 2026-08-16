@@ -145,10 +145,29 @@ class SyncEngine:
                     else:
                         continue
 
-                # 2. Fetch existing tasks in this list (by ID and by Title)
+                # 2. Fetch existing tasks in this list (by ID and by Title) and clean up duplicates
                 raw_existing_tasks = self.client.list_tasks(acc_id, list_id)
-                existing_tasks_by_id = {t["id"]: t for t in raw_existing_tasks if "id" in t}
-                existing_tasks_by_title = {t.get("title"): t for t in raw_existing_tasks if "title" in t}
+                
+                # Check and remove duplicate tasks/folders with identical title in the same list
+                seen_titles = {}
+                active_existing_tasks = []
+                for t in raw_existing_tasks:
+                    if t.get("deleted"):
+                        continue
+                    t_title = t.get("title", "").strip()
+                    if not t_title:
+                        continue
+                    if t_title in seen_titles:
+                        # Duplicate found in Google Tasks! Delete redundant copy
+                        dup_id = t["id"]
+                        self.client.delete_task(acc_id, list_id, dup_id)
+                        self.log(f"Dubbele/onzichtbare taak opgeruimd uit '{list_title}': '{t_title}' (id: {dup_id})", level="warning")
+                    else:
+                        seen_titles[t_title] = t["id"]
+                        active_existing_tasks.append(t)
+
+                existing_tasks_by_id = {t["id"]: t for t in active_existing_tasks if "id" in t}
+                existing_tasks_by_title = {t.get("title", "").strip(): t for t in active_existing_tasks if "title" in t}
                 
                 tasks_to_import = l_item.get("taken", []) or l_item.get("tasks", []) or l_item.get("subtaken", [])
                 
@@ -156,7 +175,7 @@ class SyncEngine:
 
                 for t_item in tasks_to_import:
                     t_id = t_item.get("id")
-                    t_title = t_item.get("title")
+                    t_title = (t_item.get("title") or "").strip()
                     if not t_title:
                         continue
                     t_notes = t_item.get("notes", "")
@@ -178,7 +197,7 @@ class SyncEngine:
                         final_task_id = t_id
                         old_task = existing_tasks_by_id[t_id]
                         # Only PATCH if anything actually changed
-                        if (old_task.get("title") != t_title or 
+                        if (old_task.get("title", "").strip() != t_title or 
                             old_task.get("notes") != t_notes or 
                             old_task.get("status") != t_status):
                             self.client.update_task(acc_id, list_id, t_id, task_body)
@@ -197,10 +216,11 @@ class SyncEngine:
                         created = self.client.create_task(acc_id, list_id, task_body)
                         if created and "id" in created:
                             final_task_id = created["id"]
+                            existing_tasks_by_title[t_title] = created
                             self.log(f"Nieuwe taak aangemaakt [{list_title}]: '{t_title}'")
                         stats["created_tasks"] += 1
                     
-                    if final_task_id:
+                    if final_task_id and final_task_id not in ordered_task_ids:
                         ordered_task_ids.append(final_task_id)
                     
                     time.sleep(0.02)
@@ -283,6 +303,8 @@ class SyncEngine:
                 continue
             raw_tasks = self.client.list_tasks(target_account, list_id)
             for t in raw_tasks:
+                if t.get("deleted"):
+                    continue
                 tasks_pool.append({
                     "id": t.get("id"),
                     "title": t.get("title", ""),
@@ -313,7 +335,7 @@ class SyncEngine:
             if "kapitein roy" in l_low or "kapitein karen" in l_low:
                 raw_tasks = self.client.list_tasks(target_account, list_id)
                 for t in raw_tasks:
-                    if t.get("title", "").startswith("📂 "):
+                    if t.get("deleted") or t.get("title", "").startswith("📂 "):
                         continue
                     tasks_pool.append({
                         "id": t.get("id"),
@@ -328,7 +350,7 @@ class SyncEngine:
         return tasks_pool
 
     def reassign_tasks_batch(self, moves: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Verplaatst taken naar een andere lijst (doel-lijst). moves = [{ task_id, current_list_id, target_list_title, title, notes, status }]"""
+        """Verplaatst taken naar een andere lijst (doel-lijst) en voorkomt duplicaten."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts")
@@ -337,6 +359,15 @@ class SyncEngine:
         tasklists = self.client.list_tasklists(target_account)
         lists_by_title = {l["title"]: l["id"] for l in tasklists}
 
+        # Cache existing tasks in target lists to avoid duplicate creates
+        target_tasks_cache = {}
+
+        def get_existing_in_list(list_id):
+            if list_id not in target_tasks_cache:
+                raw = self.client.list_tasks(target_account, list_id)
+                target_tasks_cache[list_id] = {t.get("title", "").strip(): t["id"] for t in raw if not t.get("deleted")}
+            return target_tasks_cache[list_id]
+
         success_count = 0
         self.log(f"Start batch herindeling van {len(moves)} taken...")
 
@@ -344,7 +375,7 @@ class SyncEngine:
             t_id = m.get("task_id")
             cur_list_id = m.get("current_list_id")
             target_title = m.get("target_list_title")
-            t_title = m.get("title")
+            t_title = (m.get("title") or "").strip()
             t_notes = m.get("notes", "")
             t_status = m.get("status", "needsAction")
 
@@ -357,17 +388,32 @@ class SyncEngine:
                     lists_by_title[target_title] = target_list_id
 
             if target_list_id and cur_list_id != target_list_id:
-                # Maak aan in nieuwe lijst
-                self.client.create_task(target_account, target_list_id, {
-                    "title": t_title,
-                    "notes": t_notes,
-                    "status": t_status
-                })
+                existing_in_target = get_existing_in_list(target_list_id)
+
+                if t_title in existing_in_target:
+                    # Update bestaande taak in doellijst in plaats van dubbel aanmaken
+                    existing_id = existing_in_target[t_title]
+                    self.client.update_task(target_account, target_list_id, existing_id, {
+                        "title": t_title,
+                        "notes": t_notes,
+                        "status": t_status
+                    })
+                    self.log(f"Bestaande taak in '{target_title}' bijgewerkt: '{t_title}'")
+                else:
+                    # Maak aan in nieuwe lijst
+                    created = self.client.create_task(target_account, target_list_id, {
+                        "title": t_title,
+                        "notes": t_notes,
+                        "status": t_status
+                    })
+                    if created and "id" in created:
+                        existing_in_target[t_title] = created["id"]
+                    self.log(f"Taak '{t_title}' verplaatst naar '{target_title}'")
+
                 # Verwijder uit oude lijst
                 if t_id and cur_list_id:
                     self.client.delete_task(target_account, cur_list_id, t_id)
                 
-                self.log(f"Taak '{t_title}' verplaatst naar '{target_title}'")
                 success_count += 1
                 time.sleep(0.04)
 
@@ -375,7 +421,7 @@ class SyncEngine:
         return {"success": True, "moved_count": success_count}
 
     def apply_captain_division(self, roy_tasks: List[Dict[str, Any]], karen_tasks: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Past de verdeling toe: verplaatst/zet taken in 11. Kapitein Roy en 12. Kapitein Karen."""
+        """Past de verdeling toe: verplaatst/zet taken in 03. Kapitein Roy en 04. Kapitein Karen met duplicaat-check."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts")
@@ -393,48 +439,46 @@ class SyncEngine:
                 karen_list_id = lid
 
         if not roy_list_id:
-            rl = self.client.create_tasklist(target_account, "11. Kapitein Roy")
+            rl = self.client.create_tasklist(target_account, "03. Kapitein Roy")
             roy_list_id = rl["id"] if rl else None
         if not karen_list_id:
-            kl = self.client.create_tasklist(target_account, "12. Kapitein Karen")
+            kl = self.client.create_tasklist(target_account, "04. Kapitein Karen")
             karen_list_id = kl["id"] if kl else None
 
         self.log(f"Start toepassen kapiteinsverdeling: {len(roy_tasks)} voor Roy, {len(karen_tasks)} voor Karen...")
 
-        # 1. Update Roy's tasks
-        for idx, t in enumerate(roy_tasks):
-            t_title = t.get("title")
-            t_notes = t.get("notes", "")
-            t_points = t.get("points")
-            if t_points:
-                t_notes_with_pts = f"Punten: {t_points} | {t_notes}".strip()
-            else:
-                t_notes_with_pts = t_notes
+        def sync_tasks_to_target_list(target_list_id, task_list, list_name):
+            raw_existing = self.client.list_tasks(target_account, target_list_id)
+            existing_by_title = {t.get("title", "").strip(): t["id"] for t in raw_existing if not t.get("deleted")}
 
-            # Create or update in Roy's list
-            self.client.create_task(target_account, roy_list_id, {
-                "title": t_title,
-                "notes": t_notes_with_pts,
-                "status": t.get("status", "needsAction")
-            })
-            time.sleep(0.05)
+            for t in task_list:
+                t_title = (t.get("title") or "").strip()
+                if not t_title:
+                    continue
+                t_notes = t.get("notes", "")
+                t_points = t.get("points")
+                t_notes_with_pts = f"Punten: {t_points} | {t_notes}".strip() if t_points else t_notes
+
+                payload = {
+                    "title": t_title,
+                    "notes": t_notes_with_pts,
+                    "status": t.get("status", "needsAction")
+                }
+
+                if t_title in existing_by_title:
+                    # Update existing task instead of creating duplicate
+                    self.client.update_task(target_account, target_list_id, existing_by_title[t_title], payload)
+                else:
+                    created = self.client.create_task(target_account, target_list_id, payload)
+                    if created and "id" in created:
+                        existing_by_title[t_title] = created["id"]
+                time.sleep(0.04)
+
+        # 1. Update Roy's tasks
+        sync_tasks_to_target_list(roy_list_id, roy_tasks, "03. Kapitein Roy")
 
         # 2. Update Karen's tasks
-        for idx, t in enumerate(karen_tasks):
-            t_title = t.get("title")
-            t_notes = t.get("notes", "")
-            t_points = t.get("points")
-            if t_points:
-                t_notes_with_pts = f"Punten: {t_points} | {t_notes}".strip()
-            else:
-                t_notes_with_pts = t_notes
-
-            self.client.create_task(target_account, karen_list_id, {
-                "title": t_title,
-                "notes": t_notes_with_pts,
-                "status": t.get("status", "needsAction")
-            })
-            time.sleep(0.05)
+        sync_tasks_to_target_list(karen_list_id, karen_tasks, "04. Kapitein Karen")
 
         self.log("Kapiteinsverdeling succesvol gesynchroniseerd met Google Tasks!", level="success")
         return {"success": True, "roy_count": len(roy_tasks), "karen_count": len(karen_tasks)}
