@@ -304,23 +304,25 @@ html, body {
   background: #161b22;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-  gap: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .manager-filters {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex: 1;
-  max-width: 450px;
+  min-width: 320px;
 }
 
 .search-input {
   flex: 1;
+  min-width: 130px;
   background: #090d13;
   border: 1px solid var(--border-color);
   color: #fff;
-  padding: 5px 10px;
+  padding: 6px 10px;
   border-radius: 4px;
   font-size: 12.5px;
   outline: none;
@@ -332,11 +334,26 @@ html, body {
   background: #090d13;
   border: 1px solid var(--border-color);
   color: #fff;
-  padding: 5px 10px;
+  padding: 6px 28px 6px 10px;
   border-radius: 4px;
   font-size: 12.5px;
   outline: none;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 14px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .manager-table-container {
