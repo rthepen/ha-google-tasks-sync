@@ -1,19 +1,19 @@
 import os
 import json
 import time
+import traceback
 import urllib.parse
 import urllib.request
 from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, Request, HTTPException, Body
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from google_client import GoogleTasksClient
 from sync_engine import SyncEngine
 
-app = FastAPI(title="Google Tasks Multi-Sync", version="1.0.1")
+app = FastAPI(title="Google Tasks Multi-Sync", version="1.0.2")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
@@ -23,7 +23,6 @@ os.makedirs(TEMPLATES_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 client = GoogleTasksClient()
 sync_engine = SyncEngine(client)
@@ -44,31 +43,30 @@ if os.path.exists(options_file):
 if auto_sync:
     sync_engine.start_scheduler(interval_minutes=sync_interval)
 
+# Global error catching middleware
+@app.middleware("http")
+async def catch_exceptions_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        err_msg = traceback.format_exc()
+        print("EXCEPTION CAUGHT:\n", err_msg)
+        return HTMLResponse(content=f"<pre style='color:#f85149;background:#0d1117;padding:20px;font-family:monospace;'>500 Internal Error:\n{err_msg}</pre>", status_code=500)
+
 # --- Web UI Routes ---
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/index.html", response_class=HTMLResponse)
 async def index(request: Request):
-    # Support Home Assistant Ingress base path
     root_path = request.headers.get("X-Ingress-Path", "").rstrip("/")
-    try:
-        return templates.TemplateResponse(
-            request=request,
-            name="index.html",
-            context={
-                "root_path": root_path,
-                "sync_interval": sync_interval,
-                "auto_sync": auto_sync
-            }
-        )
-    except Exception as e:
-        # Universal fallback: read template directly and substitute variables
-        index_file = os.path.join(TEMPLATES_DIR, "index.html")
+    index_file = os.path.join(TEMPLATES_DIR, "index.html")
+    if os.path.exists(index_file):
         with open(index_file, "r", encoding="utf-8") as f:
             html = f.read()
         html = html.replace("{{ root_path }}", root_path)
         html = html.replace("{{ sync_interval }}", str(sync_interval))
         return HTMLResponse(content=html)
+    return HTMLResponse(content="<h1>Google Tasks Multi-Sync</h1><p>index.html not found.</p>")
 
 # --- API Endpoints ---
 
@@ -116,7 +114,6 @@ async def import_json(payload: ImportPayload):
 
 @app.post("/api/json/validate")
 async def validate_json(payload: Dict[str, Any] = Body(...)):
-    # Validate structure
     lists = payload.get("lijsten") or payload.get("tasks") or []
     return {
         "valid": True,
@@ -154,7 +151,6 @@ async def add_account(payload: AddAccountPayload):
     }
     client.save_account(acc_id, payload.email, payload.name, token_data)
     
-    # Test connection
     token = client.get_access_token(acc_id)
     if not token:
         client.delete_account(acc_id)
