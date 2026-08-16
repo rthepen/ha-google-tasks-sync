@@ -308,12 +308,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnReloadJson = document.getElementById('btn-reload-json');
   const btnApplyJson = document.getElementById('btn-apply-json');
 
-  const logsContainer = document.getElementById('logs-container');
+  const logsContainer = document.getElementById('debug-log-view');
   const debugLastSync = document.getElementById('debug-last-sync');
   const btnClearLogs = document.getElementById('btn-clear-logs');
   const btnRefreshLogs = document.getElementById('btn-refresh-logs');
 
   function appendClientLog(msg, level = 'info') {
+    if (!logsContainer) return;
     const time = new Date().toTimeString().split(' ')[0];
     const el = document.createElement('div');
     el.className = `log-entry level-${level}`;
@@ -326,8 +327,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(`${rootPath}/api/status`);
       if (!res.ok) return;
       const data = await res.json();
-      debugLastSync.textContent = `Laatste sync: ${data.last_sync_time || 'Nog niet'}`;
-      if (data.logs && data.logs.length > 0) {
+      if (debugLastSync) debugLastSync.textContent = `Laatste sync: ${data.last_sync_time || 'Nog niet'}`;
+      if (logsContainer && data.logs && data.logs.length > 0) {
         logsContainer.innerHTML = data.logs.map(l => 
           `<div class="log-entry level-${l.level}">[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}</div>`
         ).join('');
@@ -335,15 +336,19 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {}
   }
 
-  btnClearLogs.addEventListener('click', () => {
-    logsContainer.innerHTML = '<div class="log-entry">[SYSTEM] Logboek gewist.</div>';
-    showToast('Logboek gewist');
-  });
+  if (btnClearLogs) {
+    btnClearLogs.addEventListener('click', () => {
+      if (logsContainer) logsContainer.innerHTML = '<div class="log-entry">[SYSTEM] Logboek gewist.</div>';
+      showToast('Logboek gewist');
+    });
+  }
 
-  btnRefreshLogs.addEventListener('click', () => {
-    loadLogsAndStatus();
-    showToast('Logs ververst');
-  });
+  if (btnRefreshLogs) {
+    btnRefreshLogs.addEventListener('click', () => {
+      loadLogsAndStatus();
+      showToast('Logs ververst');
+    });
+  }
 
   jsonTextarea.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
