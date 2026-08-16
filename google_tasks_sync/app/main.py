@@ -1,0 +1,168 @@
+import os
+import json
+import time
+import urllib.parse
+import urllib.request
+from typing import Dict, Any, Optional, List
+from fastapi import FastAPI, Request, HTTPException, Body
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+
+from google_client import GoogleTasksClient
+from sync_engine import SyncEngine
+
+app = FastAPI(title="Google Tasks Multi-Sync", version="1.0.0")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+os.makedirs(TEMPLATES_DIR, exist_ok=True)
+os.makedirs(STATIC_DIR, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
+
+client = GoogleTasksClient()
+sync_engine = SyncEngine(client)
+
+# Read options from Home Assistant Addon options.json if available
+options_file = "/data/options.json"
+sync_interval = 15
+auto_sync = True
+if os.path.exists(options_file):
+    try:
+        with open(options_file, "r", encoding="utf-8") as f:
+            opts = json.load(f)
+            sync_interval = opts.get("sync_interval_minutes", 15)
+            auto_sync = opts.get("auto_sync_enabled", True)
+    except Exception:
+        pass
+
+if auto_sync:
+    sync_engine.start_scheduler(interval_minutes=sync_interval)
+
+# --- Web UI Routes ---
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    # Support Home Assistant Ingress base path
+    root_path = request.headers.get("X-Ingress-Path", "")
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "root_path": root_path,
+        "sync_interval": sync_interval,
+        "auto_sync": auto_sync
+    })
+
+# --- API Endpoints ---
+
+@app.get("/api/status")
+async def get_status():
+    accounts = client.get_accounts()
+    return {
+        "total_accounts": len(accounts),
+        "accounts": [
+            {
+                "id": k,
+                "name": v.get("name"),
+                "email": v.get("email"),
+                "updated_at": v.get("updated_at")
+            }
+            for k, v in accounts.items()
+        ],
+        "is_syncing": sync_engine.is_syncing,
+        "last_sync_time": sync_engine.last_sync_time,
+        "last_sync_status": sync_engine.last_sync_status,
+        "logs": sync_engine.sync_logs[:50]
+    }
+
+@app.post("/api/sync/now")
+async def trigger_sync():
+    result = sync_engine.run_sync()
+    return result
+
+@app.get("/api/json/export")
+async def export_json(account_id: Optional[str] = None):
+    data = sync_engine.export_full_json(account_id)
+    return JSONResponse(content=data)
+
+class ImportPayload(BaseModel):
+    json_data: Dict[str, Any]
+    target_accounts: Optional[List[str]] = None
+
+@app.post("/api/json/import")
+async def import_json(payload: ImportPayload):
+    try:
+        res = sync_engine.import_full_json(payload.json_data, payload.target_accounts)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/json/validate")
+async def validate_json(payload: Dict[str, Any] = Body(...)):
+    # Validate structure
+    lists = payload.get("lijsten") or payload.get("tasks") or []
+    return {
+        "valid": True,
+        "lists_count": len(lists) if isinstance(lists, list) else 0,
+        "message": f"Geldige JSON structuur gevonden met {len(lists)} elementen."
+    }
+
+# --- Account Management ---
+
+@app.get("/api/accounts")
+async def list_accounts():
+    accounts = client.get_accounts()
+    return {
+        "accounts": [
+            {"id": k, "name": v.get("name"), "email": v.get("email")}
+            for k, v in accounts.items()
+        ]
+    }
+
+class AddAccountPayload(BaseModel):
+    name: str
+    email: str
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    refresh_token: str
+
+@app.post("/api/accounts/add")
+async def add_account(payload: AddAccountPayload):
+    acc_id = payload.email.replace("@", "_at_").replace(".", "_")
+    token_data = {
+        "type": "authorized_user",
+        "client_id": payload.client_id,
+        "client_secret": payload.client_secret,
+        "refresh_token": payload.refresh_token
+    }
+    client.save_account(acc_id, payload.email, payload.name, token_data)
+    
+    # Test connection
+    token = client.get_access_token(acc_id)
+    if not token:
+        client.delete_account(acc_id)
+        raise HTTPException(status_code=400, detail="Kon niet authenticeren met Google. Controleer de refresh token.")
+    
+    return {"success": True, "account_id": acc_id}
+
+@app.delete("/api/accounts/{account_id}")
+async def delete_account(account_id: str):
+    client.delete_account(account_id)
+    return {"success": True}
+
+@app.get("/api/oauth/config")
+async def get_oauth_config():
+    cfg = client.get_client_config()
+    return {
+        "has_client_secret": bool(cfg),
+        "client_id": cfg.get("client_id") if cfg else None
+    }
+
+@app.post("/api/oauth/save_secret")
+async def save_oauth_secret(secret_json: Dict[str, Any] = Body(...)):
+    client.save_client_config(secret_json)
+    return {"success": True}
