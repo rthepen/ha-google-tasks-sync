@@ -36,13 +36,14 @@ body {
 
 /* App Container */
 .app-container {
-  max-width: 1350px;
+  max-width: 1450px;
   margin: 0 auto;
   width: 100%;
-  padding: 24px 20px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+  height: 96vh;
 }
 
 /* Navbar */
@@ -321,6 +322,7 @@ body {
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
+  flex: 1;
   overflow: hidden;
 }
 
@@ -328,7 +330,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 20px;
+  padding: 12px 20px;
   background: #1c2128;
   border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
@@ -342,8 +344,8 @@ body {
 }
 
 .editor-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .tag {
@@ -351,20 +353,21 @@ body {
   color: var(--accent);
   border: 1px solid rgba(56, 139, 253, 0.3);
   font-size: 11px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 12px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .toolbar-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .editor-container {
   position: relative;
-  height: 540px;
+  flex: 1;
+  min-height: 520px;
   background: #090d13;
 }
 
