@@ -640,24 +640,46 @@ html, body {
 
 /* Mobile & Touch Responsive Styles */
 @media (max-width: 768px) {
-  .app-header {
+  .navbar {
     flex-direction: column;
-    align-items: flex-start;
-    padding: 10px 12px;
+    align-items: stretch;
+    padding: 8px 10px;
     gap: 8px;
+  }
+
+  .brand {
+    justify-content: space-between;
+    width: 100%;
   }
 
   .nav-tabs-header {
     width: 100%;
+    display: flex;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     justify-content: flex-start;
-    padding: 2px;
+    padding: 3px;
+    gap: 4px;
   }
 
   .nav-tab {
-    padding: 6px 10px;
+    flex: 1 0 auto;
+    justify-content: center;
+    padding: 7px 10px;
     font-size: 12px;
     white-space: nowrap;
+    border-radius: 4px;
+  }
+
+  .nav-actions {
+    width: 100%;
+  }
+
+  .nav-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 7px 10px;
+    font-size: 12.5px;
   }
 
   .manager-toolbar {
