@@ -28,6 +28,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3000);
   }
 
+  // --- Handle Tab Key in Textarea ---
+  jsonTextarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = jsonTextarea.selectionStart;
+      const end = jsonTextarea.selectionEnd;
+      jsonTextarea.value = jsonTextarea.value.substring(0, start) + '  ' + jsonTextarea.value.substring(end);
+      jsonTextarea.selectionStart = jsonTextarea.selectionEnd = start + 2;
+    }
+  });
+
+  // --- Real-time Syntax Feedback on Typing ---
+  jsonTextarea.addEventListener('input', () => {
+    try {
+      const parsed = JSON.parse(jsonTextarea.value);
+      const totalLists = parsed.lijsten ? parsed.lijsten.length : (parsed.total_hoofdtaken || 'meerdere');
+      jsonStatusMsg.textContent = `✓ Geldige JSON (${totalLists} lijsten). Klaar om toe te passen.`;
+      jsonStatusMsg.className = 'status-msg success';
+    } catch (err) {
+      jsonStatusMsg.textContent = `⚠ Bezig met typen / JSON syntax niet af: ${err.message}`;
+      jsonStatusMsg.className = 'status-msg error';
+    }
+  });
+
   // --- Fetch and Load JSON from Google Tasks ---
   async function loadJsonExport() {
     jsonStatusMsg.textContent = 'JSON ophalen vanuit Google Tasks...';
@@ -41,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const formatted = JSON.stringify(currentJsonData, null, 2);
       jsonTextarea.value = formatted;
+      jsonTextarea.scrollTop = 0; // Scroll to top initially
 
       const totalLists = currentJsonData.totaal_lijsten || 0;
       const totalTasks = currentJsonData.totaal_taken || 0;
@@ -88,7 +113,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Let op: Geplakte tekst bevat syntaxfouten', true);
       }
     } catch (e) {
-      // Fallback focus to textarea
       jsonTextarea.focus();
       showToast('Plak direct met Ctrl+V / Cmd+V in het tekstveld');
     }
