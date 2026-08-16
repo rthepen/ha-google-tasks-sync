@@ -1,148 +1,159 @@
 import time
 import json
-import os
-import threading
 from typing import Dict, List, Any, Optional
+from threading import Timer
 from google_client import GoogleTasksClient
 
 class SyncEngine:
-    def __init__(self, client: GoogleTasksClient):
+    def __init__(self, client: GoogleTasksClient, sync_interval_seconds: int = 900):
         self.client = client
+        self.sync_interval = sync_interval_seconds
         self.is_syncing = False
-        self.last_sync_time = None
-        self.last_sync_status = "Nooit gedraaid"
-        self.sync_logs: List[Dict[str, Any]] = []
-        self._timer = None
-        self._interval_seconds = 15 * 60
-        self._running = False
+        self.last_sync_time: Optional[str] = None
+        self.last_sync_status: str = "Gereed"
+        self.logs: List[Dict[str, Any]] = []
+        self._timer: Optional[Timer] = None
+        self.start_periodic_sync()
 
-    def start_scheduler(self, interval_minutes: int = 15):
-        self._interval_seconds = max(1, interval_minutes) * 60
-        self._running = True
-        self._schedule_next()
-        print(f"SyncEngine scheduler gestart met interval: {interval_minutes} minuten.")
+    def log(self, message: str, level: str = "info"):
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        entry = {"timestamp": timestamp, "level": level, "message": message}
+        self.logs.insert(0, entry)
+        if len(self.logs) > 100:
+            self.logs.pop()
+        print(f"[{timestamp}] [{level.upper()}] {message}")
 
-    def _schedule_next(self):
-        if not self._running:
-            return
-        self._timer = threading.Timer(self._interval_seconds, self._on_timer)
+    def start_periodic_sync(self):
+        if self._timer:
+            self._timer.cancel()
+        
+        def _job():
+            try:
+                self.run_sync()
+            except Exception as e:
+                self.log(f"Periodieke sync fout: {e}", level="error")
+            finally:
+                self.start_periodic_sync()
+
+        self._timer = Timer(self.sync_interval, _job)
         self._timer.daemon = True
         self._timer.start()
 
-    def _on_timer(self):
-        try:
-            self.run_sync()
-        finally:
-            self._schedule_next()
-
-    def stop_scheduler(self):
-        self._running = False
-        if self._timer:
-            self._timer.cancel()
-
-    def log(self, message: str, level: str = "info"):
-        entry = {
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "level": level,
-            "message": message
-        }
-        self.sync_logs.insert(0, entry)
-        if len(self.sync_logs) > 200:
-            self.sync_logs.pop()
-        print(f"[{entry['timestamp']}] [{level.upper()}] {message}")
-
-    def export_full_json(self, target_account_id: Optional[str] = None) -> Dict[str, Any]:
+    def export_full_json(self, account_id: Optional[str] = None) -> Dict[str, Any]:
         accounts = self.client.get_accounts()
         if not accounts:
-            return {"error": "Geen accounts gekoppeld", "lijsten": []}
+            raise ValueError("Geen Google accounts gekoppeld.")
+        
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        account_info = accounts[target_account]
 
-        account_id = target_account_id or list(accounts.keys())[0]
-        account_name = accounts[account_id].get("name", account_id)
-        account_email = accounts[account_id].get("email", "")
+        tasklists = self.client.list_tasklists(target_account)
+        export_lists = []
+        total_tasks = 0
 
-        raw_lists = self.client.list_tasklists(account_id)
-        lists_data = []
-
-        for l in raw_lists:
-            list_id = l["id"]
-            list_title = l["title"]
-            raw_tasks = self.client.list_tasks(account_id, list_id)
+        for tl in tasklists:
+            t_list_id = tl["id"]
+            t_list_title = tl["title"]
             
-            # Sort by position
-            raw_tasks.sort(key=lambda t: t.get("position", ""))
-            
-            tasks_list = []
+            raw_tasks = self.client.list_tasks(target_account, t_list_id)
+            raw_tasks.sort(key=lambda x: x.get("position", ""))
+
+            cleaned_tasks = []
             for t in raw_tasks:
-                tasks_list.append({
-                    "id": t["id"],
+                cleaned_tasks.append({
+                    "id": t.get("id"),
                     "title": t.get("title", ""),
                     "notes": t.get("notes", ""),
                     "status": t.get("status", "needsAction"),
                     "due": t.get("due"),
-                    "position": t.get("position", ""),
-                    "updated": t.get("updated", ""),
-                    "webViewLink": t.get("webViewLink", "")
+                    "position": t.get("position"),
+                    "updated": t.get("updated"),
+                    "webViewLink": t.get("webViewLink")
                 })
 
-            lists_data.append({
-                "list_id": list_id,
-                "titel": list_title,
-                "aantal_taken": len(tasks_list),
-                "taken": tasks_list
+            total_tasks += len(cleaned_tasks)
+            export_lists.append({
+                "list_id": t_list_id,
+                "titel": t_list_title,
+                "aantal_taken": len(cleaned_tasks),
+                "taken": cleaned_tasks
             })
 
         return {
             "bron_account": {
-                "id": account_id,
-                "naam": account_name,
-                "email": account_email
+                "id": target_account,
+                "naam": account_info.get("name"),
+                "email": account_info.get("email")
             },
             "export_tijdstip": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "totaal_lijsten": len(lists_data),
-            "totaal_taken": sum(l["aantal_taken"] for l in lists_data),
-            "lijsten": lists_data
+            "totaal_lijsten": len(export_lists),
+            "totaal_taken": total_tasks,
+            "lijsten": export_lists
         }
 
-    def import_full_json(self, json_payload: Dict[str, Any], target_account_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    def import_full_json(self, json_data: Dict[str, Any], target_account_ids: Optional[List[str]] = None) -> Dict[str, Any]:
         accounts = self.client.get_accounts()
         if not accounts:
-            return {"success": False, "error": "Geen Google accounts gekoppeld"}
+            raise ValueError("Geen Google accounts geconfigureerd.")
 
-        target_ids = target_account_ids or list(accounts.keys())
+        targets = target_account_ids if target_account_ids else list(accounts.keys())
         results = {}
 
-        lists_to_import = json_payload.get("lijsten", [])
-        if not lists_to_import and "tasks" in json_payload:
-            # Fallback format handling
-            lists_to_import = [{"titel": json_payload.get("tasklist", "To do"), "taken": json_payload["tasks"]}]
+        lists_to_import = json_data.get("lijsten") or json_data.get("tasks") or json_data.get("tasklists") or []
 
-        for acc_id in target_ids:
+        for acc_id in targets:
+            if acc_id not in accounts:
+                continue
+
             acc_name = accounts[acc_id].get("name", acc_id)
             self.log(f"Start import van {len(lists_to_import)} lijsten naar account: {acc_name}")
             
-            existing_lists = {l["title"]: l["id"] for l in self.client.list_tasklists(acc_id)}
-            stats = {"created_lists": 0, "created_tasks": 0, "updated_tasks": 0}
+            # Fetch existing lists (by id and by title)
+            existing_tasklists = self.client.list_tasklists(acc_id)
+            existing_lists_by_id = {l["id"]: l["title"] for l in existing_tasklists}
+            existing_lists_by_title = {l["title"]: l["id"] for l in existing_tasklists}
+            
+            stats = {"created_lists": 0, "created_tasks": 0, "updated_tasks": 0, "deleted_tasks": 0}
 
             for l_item in lists_to_import:
                 list_title = l_item.get("titel") or l_item.get("title")
-                if not list_title:
+                list_id = l_item.get("list_id") or l_item.get("id")
+
+                if not list_title and not list_id:
                     continue
 
-                if list_title in existing_lists:
-                    list_id = existing_lists[list_title]
+                # 1. Resolve / Update List Title or Create List
+                if list_id and list_id in existing_lists_by_id:
+                    # List exists by ID
+                    current_title = existing_lists_by_id[list_id]
+                    if list_title and list_title != current_title:
+                        self.client.update_tasklist(acc_id, list_id, list_title)
+                        self.log(f"Lijstnaam gewijzigd van '{current_title}' naar '{list_title}'")
+                elif list_title and list_title in existing_lists_by_title:
+                    # List exists by title
+                    list_id = existing_lists_by_title[list_title]
                 else:
-                    new_l = self.client.create_tasklist(acc_id, list_title)
+                    # Create new list
+                    new_title = list_title or "Nieuwe Lijst"
+                    new_l = self.client.create_tasklist(acc_id, new_title)
                     if new_l:
                         list_id = new_l["id"]
-                        existing_lists[list_title] = list_id
+                        existing_lists_by_title[new_title] = list_id
+                        existing_lists_by_id[list_id] = new_title
                         stats["created_lists"] += 1
+                        self.log(f"Nieuwe lijst aangemaakt: {new_title}")
                     else:
                         continue
 
-                existing_tasks = {t.get("title"): t for t in self.client.list_tasks(acc_id, list_id)}
+                # 2. Fetch existing tasks in this list (by ID and by Title)
+                raw_existing_tasks = self.client.list_tasks(acc_id, list_id)
+                existing_tasks_by_id = {t["id"]: t for t in raw_existing_tasks if "id" in t}
+                existing_tasks_by_title = {t.get("title"): t for t in raw_existing_tasks if "title" in t}
                 
                 tasks_to_import = l_item.get("taken", []) or l_item.get("tasks", []) or l_item.get("subtaken", [])
+                
                 for t_item in tasks_to_import:
+                    t_id = t_item.get("id")
                     t_title = t_item.get("title")
                     if not t_title:
                         continue
@@ -158,20 +169,35 @@ class SyncEngine:
                     if t_due:
                         task_body["due"] = t_due
 
-                    if t_title in existing_tasks:
-                        # Update existing
-                        task_id = existing_tasks[t_title]["id"]
-                        self.client.update_task(acc_id, list_id, task_id, task_body)
+                    # Match by task ID first (allows renaming titles!), then fallback to Title
+                    if t_id and t_id in existing_tasks_by_id:
+                        old_task = existing_tasks_by_id[t_id]
+                        # Only PATCH if anything actually changed
+                        if (old_task.get("title") != t_title or 
+                            old_task.get("notes") != t_notes or 
+                            old_task.get("status") != t_status):
+                            self.client.update_task(acc_id, list_id, t_id, task_body)
+                            self.log(f"Taak bijgewerkt [{list_title}]: '{t_title}'")
+                        stats["updated_tasks"] += 1
+                    elif t_title in existing_tasks_by_title:
+                        existing_id = existing_tasks_by_title[t_title]["id"]
+                        old_task = existing_tasks_by_title[t_title]
+                        if (old_task.get("notes") != t_notes or 
+                            old_task.get("status") != t_status):
+                            self.client.update_task(acc_id, list_id, existing_id, task_body)
+                            self.log(f"Taak bijgewerkt [{list_title}]: '{t_title}'")
                         stats["updated_tasks"] += 1
                     else:
-                        # Create new
-                        self.client.create_task(acc_id, list_id, task_body)
+                        # Create new task
+                        created = self.client.create_task(acc_id, list_id, task_body)
+                        if created:
+                            self.log(f"Nieuwe taak aangemaakt [{list_title}]: '{t_title}'")
                         stats["created_tasks"] += 1
                     
-                    time.sleep(0.05)
+                    time.sleep(0.03)
 
             results[acc_id] = stats
-            self.log(f"Import voltooid voor {acc_name}: {stats}")
+            self.log(f"Import voltooid voor {acc_name}: {stats}", level="success")
 
         return {"success": True, "results": results}
 
@@ -180,29 +206,26 @@ class SyncEngine:
             return {"status": "already_syncing"}
 
         self.is_syncing = True
-        self.log("Synchronisatieproces gestart...")
+        self.log("Automatisch synchronisatieproces gestart...")
         
         try:
             accounts = self.client.get_accounts()
             account_ids = list(accounts.keys())
 
             if len(account_ids) < 2:
-                msg = f"Synchronisatie overgeslagen: {len(account_ids)} account(s) actief (minimaal 2 nodig voor multi-account sync)."
+                msg = f"Multi-account sync overgeslagen ({len(account_ids)} account actief)."
                 self.log(msg, level="warning")
                 self.last_sync_status = msg
                 self.last_sync_time = time.strftime("%Y-%m-%d %H:%M:%S")
                 return {"status": "skipped", "message": msg}
 
-            # Two-way / Multi-account sync
+            # Multi-account sync
             primary_id = account_ids[0]
             secondary_ids = account_ids[1:]
 
-            self.log(f"Multi-account sync tussen {len(account_ids)} accounts: {', '.join([accounts[a].get('name', a) for a in account_ids])}")
-            
-            # 1. Export unified data from primary
+            self.log(f"Sync tussen {len(account_ids)} accounts: {', '.join([accounts[a].get('name', a) for a in account_ids])}")
             primary_data = self.export_full_json(primary_id)
             
-            # 2. Sync to all other accounts
             for sec_id in secondary_ids:
                 sec_name = accounts[sec_id].get("name", sec_id)
                 self.log(f"Synchroniseer naar {sec_name}...")
@@ -210,7 +233,7 @@ class SyncEngine:
 
             self.last_sync_status = "Succesvol"
             self.last_sync_time = time.strftime("%Y-%m-%d %H:%M:%S")
-            self.log("Synchronisatie succesvol afgerond!")
+            self.log("Synchronisatie succesvol afgerond!", level="success")
             return {"status": "success", "time": self.last_sync_time}
 
         except Exception as e:

@@ -178,6 +178,9 @@ class GoogleTasksClient:
     def create_tasklist(self, account_id: str, title: str) -> Optional[Dict[str, Any]]:
         return self.api_request(account_id, "https://tasks.googleapis.com/tasks/v1/users/@me/lists", method="POST", payload={"title": title})
 
+    def update_tasklist(self, account_id: str, tasklist_id: str, title: str) -> Optional[Dict[str, Any]]:
+        return self.api_request(account_id, f"https://tasks.googleapis.com/tasks/v1/users/@me/lists/{tasklist_id}", method="PATCH", payload={"title": title})
+
     def delete_tasklist(self, account_id: str, tasklist_id: str) -> bool:
         return bool(self.api_request(account_id, f"https://tasks.googleapis.com/tasks/v1/users/@me/lists/{tasklist_id}", method="DELETE"))
 
