@@ -87,6 +87,12 @@ document.addEventListener('DOMContentLoaded', () => {
       return "Huishouden & Zorg";
     }
     if (listTitle.includes('Wisselende Kapiteins')) {
+      if (tLow.includes('verwarming kelder')) return "Bouw - Verwarming Kelder";
+      if (tLow.includes('studio dave')) return "Bouw - Studio Dave";
+      if (tLow.includes('studio rahiena')) return "Bouw - Studio Rahiena";
+      if (tLow.includes('eigen studio')) return "Bouw - Eigen Studio";
+      if (tLow.includes('thuisaccu')) return "Bouw - Thuisaccu";
+      if (tLow.includes('home assistant')) return "Bouw - Home Assistant";
       const bouwKw = ['waterzijde', 'luchtleidingen', 'ha regeling', 'elektra', 'gipsplaten', 'xps', 'laminaat', 'keuken', 'naden', 'rachelwerk', 'luchtkanalen', 'muren', 'voorzetwanden', 'leidingen', 'meterkast', '3d-ontwerp', 'packs', 'omvormer', 'pv-panelen', 'ac/dc', 'mqtt', 'esp ', 'dashboard'];
       if (bouwKw.some(k => tLow.includes(k))) return "Bouw Woning";
       if (tLow.includes('maandrapportage') || tLow.includes('evaluatie') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('gastheerschap') || tLow.includes('beschikbaarheid')) return "Gezinshuis";
