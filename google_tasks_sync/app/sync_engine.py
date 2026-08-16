@@ -152,6 +152,8 @@ class SyncEngine:
                 
                 tasks_to_import = l_item.get("taken", []) or l_item.get("tasks", []) or l_item.get("subtaken", [])
                 
+                ordered_task_ids = []
+
                 for t_item in tasks_to_import:
                     t_id = t_item.get("id")
                     t_title = t_item.get("title")
@@ -169,8 +171,11 @@ class SyncEngine:
                     if t_due:
                         task_body["due"] = t_due
 
+                    final_task_id = None
+
                     # Match by task ID first (allows renaming titles!), then fallback to Title
                     if t_id and t_id in existing_tasks_by_id:
+                        final_task_id = t_id
                         old_task = existing_tasks_by_id[t_id]
                         # Only PATCH if anything actually changed
                         if (old_task.get("title") != t_title or 
@@ -180,21 +185,38 @@ class SyncEngine:
                             self.log(f"Taak bijgewerkt [{list_title}]: '{t_title}'")
                         stats["updated_tasks"] += 1
                     elif t_title in existing_tasks_by_title:
-                        existing_id = existing_tasks_by_title[t_title]["id"]
+                        final_task_id = existing_tasks_by_title[t_title]["id"]
                         old_task = existing_tasks_by_title[t_title]
                         if (old_task.get("notes") != t_notes or 
                             old_task.get("status") != t_status):
-                            self.client.update_task(acc_id, list_id, existing_id, task_body)
+                            self.client.update_task(acc_id, list_id, final_task_id, task_body)
                             self.log(f"Taak bijgewerkt [{list_title}]: '{t_title}'")
                         stats["updated_tasks"] += 1
                     else:
                         # Create new task
                         created = self.client.create_task(acc_id, list_id, task_body)
-                        if created:
+                        if created and "id" in created:
+                            final_task_id = created["id"]
                             self.log(f"Nieuwe taak aangemaakt [{list_title}]: '{t_title}'")
                         stats["created_tasks"] += 1
                     
-                    time.sleep(0.03)
+                    if final_task_id:
+                        ordered_task_ids.append(final_task_id)
+                    
+                    time.sleep(0.02)
+
+                # 3. Synchronize task order/position in Google Tasks (Top to Bottom)
+                if len(ordered_task_ids) > 1:
+                    prev_id = ordered_task_ids[0]
+                    # First task moved to top
+                    self.client.move_task(acc_id, list_id, prev_id, previous_id=None)
+                    time.sleep(0.02)
+
+                    for cur_id in ordered_task_ids[1:]:
+                        self.client.move_task(acc_id, list_id, cur_id, previous_id=prev_id)
+                        prev_id = cur_id
+                        time.sleep(0.02)
+                    self.log(f"Volgorde/positie gesynchroniseerd voor {len(ordered_task_ids)} taken in '{list_title}'")
 
             results[acc_id] = stats
             self.log(f"Import voltooid voor {acc_name}: {stats}", level="success")
