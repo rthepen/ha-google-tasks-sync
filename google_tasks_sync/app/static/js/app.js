@@ -560,25 +560,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const totalBudget = allCaptainTasks.length * 10;
+      document.querySelectorAll('.stepper-total-pts').forEach(el => el.textContent = totalBudget);
+      const royLabel = document.getElementById('roy-total-budget-label');
+      if (royLabel) royLabel.textContent = `${totalBudget} punten (${allCaptainTasks.length} taken × 10)`;
+      const karenLabel = document.getElementById('karen-total-budget-label');
+      if (karenLabel) karenLabel.textContent = `${totalBudget} punten (${allCaptainTasks.length} taken × 10)`;
+
       initPointsStep(1, 'roy');
     } catch (e) {
       grid.innerHTML = `<div class="status-msg error">Fout: ${e.message}</div>`;
     }
   }
 
-  // --- STAP 1 & 2: Points Allocation (1000pt) ---
+  // --- STAP 1 & 2: Points Allocation (10pt per taak standaard, totaal = N * 10) ---
   function initPointsStep(stepNum, player) {
     const grid = document.getElementById(`step-${stepNum}-points-grid`);
-    const count = allCaptainTasks.length || 1;
-    const initialPts = Math.floor(1000 / count);
-    const remainder = 1000 - (initialPts * count);
-
+    const totalBudget = (allCaptainTasks.length || 1) * 10;
     const pointsObj = (player === 'roy') ? royPoints : karenPoints;
 
-    // Set default points if empty
-    allCaptainTasks.forEach((t, i) => {
+    // Set default points to 10 for every task
+    allCaptainTasks.forEach((t) => {
       if (pointsObj[t.title] === undefined) {
-        pointsObj[t.title] = initialPts + (i === 0 ? remainder : 0);
+        pointsObj[t.title] = 10;
       }
     });
 
@@ -596,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <button class="btn btn-sm btn-outline btn-pt-change" data-delta="-20" data-title="${t.title}" title="-20 punten">-20</button>
             <button class="btn btn-sm btn-outline btn-pt-change" data-delta="-5" data-title="${t.title}" title="-5 punten">-5</button>
             <button class="btn btn-sm btn-outline btn-pt-change" data-delta="-1" data-title="${t.title}" title="-1 punt">-1</button>
-            <input type="number" class="point-input" data-title="${t.title}" value="${pointsObj[t.title] || 0}" min="0" max="1000">
+            <input type="number" class="point-input" data-title="${t.title}" value="${pointsObj[t.title] !== undefined ? pointsObj[t.title] : 10}" min="0" max="1000">
             <button class="btn btn-sm btn-outline btn-pt-change" data-delta="1" data-title="${t.title}" title="+1 punt">+1</button>
             <button class="btn btn-sm btn-outline btn-pt-change" data-delta="5" data-title="${t.title}" title="+5 punten">+5</button>
             <button class="btn btn-sm btn-outline btn-pt-change" data-delta="20" data-title="${t.title}" title="+20 punten">+20</button>
@@ -630,22 +634,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateBudgetStatus(stepNum, player) {
+    const totalBudget = (allCaptainTasks.length || 1) * 10;
     const pointsObj = (player === 'roy') ? royPoints : karenPoints;
     const totalAssigned = Object.values(pointsObj).reduce((sum, v) => sum + (parseInt(v) || 0), 0);
-    const remaining = 1000 - totalAssigned;
+    const remaining = totalBudget - totalAssigned;
 
     const textEl = document.getElementById(`${player}-budget-text`);
     const fillEl = document.getElementById(`${player}-budget-progress`);
 
     if (textEl && fillEl) {
-      textEl.textContent = `${totalAssigned} / 1000 punten verdeeld (${remaining >= 0 ? remaining + ' over' : Math.abs(remaining) + ' te veel!'})`;
+      textEl.textContent = `${totalAssigned} / ${totalBudget} punten verdeeld (${remaining >= 0 ? remaining + ' over' : Math.abs(remaining) + ' te veel!'})`;
       
-      const pct = Math.min(100, Math.max(0, (totalAssigned / 1000) * 100));
+      const pct = Math.min(100, Math.max(0, (totalAssigned / totalBudget) * 100));
       fillEl.style.width = `${pct}%`;
 
       fillEl.className = 'progress-bar-fill';
-      if (totalAssigned > 1000) fillEl.classList.add('danger');
-      else if (totalAssigned === 1000) fillEl.style.background = '#3fb950';
+      if (totalAssigned > totalBudget) fillEl.classList.add('danger');
+      else if (totalAssigned === totalBudget) fillEl.style.background = '#3fb950';
     }
   }
 

@@ -173,9 +173,9 @@
         
         <!-- Wizard Steps Indicator (5 Stappen: Roy Punten, Karen Punten, Gemiddelden, Kiezen, Sync) -->
         <div class="wizard-stepper">
-          <div class="step-item active" data-step="1"><span class="step-num">1</span> Punten Roy (1000)</div>
+          <div class="step-item active" data-step="1"><span class="step-num">1</span> Punten Roy (<span class="stepper-total-pts">500</span>)</div>
           <div class="step-line"></div>
-          <div class="step-item" data-step="2"><span class="step-num">2</span> Punten Karen (1000)</div>
+          <div class="step-item" data-step="2"><span class="step-num">2</span> Punten Karen (<span class="stepper-total-pts">500</span>)</div>
           <div class="step-line"></div>
           <div class="step-item" data-step="3"><span class="step-num">3</span> Gemiddelden</div>
           <div class="step-line"></div>
@@ -184,16 +184,16 @@
           <div class="step-item" data-step="5"><span class="step-num">5</span> Overzicht & Sync</div>
         </div>
 
-        <!-- STAP 1 (Oorspronkelijk Stap 2): Punten Roy (1000pt) -->
+        <!-- STAP 1: Punten Roy (10pt per taak) -->
         <div class="wizard-step-content" id="step-1-content">
           <div class="step-header">
-            <h2>Stap 1: Puntenverdeling door Roy (1000 Punten)</h2>
-            <p>Verdeel exact 1000 punten over alle taken uit <strong>03. Kapitein Roy</strong> en <strong>04. Kapitein Karen</strong>. Gebruik de knoppen (+1, -1, +5, -5, +20, -20) om snel aan te passen.</p>
+            <h2>Stap 1: Puntenverdeling door Roy (10 Punten per taak)</h2>
+            <p>Elke taak staat standaard op <strong>10 punten</strong>. Je totale budget is exact <strong id="roy-total-budget-label">500 punten</strong> (10 × aantal taken). Pas zwaardere taken aan met de knoppen (+1, -1, +5, -5) en compenseer op andere taken.</p>
           </div>
           <div class="budget-bar-card">
             <div class="budget-header">
               <span>Budget Status:</span>
-              <strong id="roy-budget-text">1000 / 1000 punten over</strong>
+              <strong id="roy-budget-text">500 / 500 punten verdeeld (0 over)</strong>
             </div>
             <div class="progress-bar-bg"><div class="progress-bar-fill" id="roy-budget-progress" style="width: 100%;"></div></div>
           </div>
@@ -203,16 +203,16 @@
           </div>
         </div>
 
-        <!-- STAP 2: Punten Karen (1000pt) -->
+        <!-- STAP 2: Punten Karen (10pt per taak) -->
         <div class="wizard-step-content" id="step-2-content" style="display:none;">
           <div class="step-header">
-            <h2>Stap 2: Puntenverdeling door Karen (1000 Punten)</h2>
-            <p>Karen verdeelt nu ook exact 1000 punten over dezelfde kapiteinstaken. Gebruik de knoppen (+1, -1, +5, -5, +20, -20) om snel aan te passen.</p>
+            <h2>Stap 2: Puntenverdeling door Karen (10 Punten per taak)</h2>
+            <p>Karen verdeelt nu ook haar budget over dezelfde kapiteinstaken (standaard 10 punten per taak, totaal <strong id="karen-total-budget-label">500 punten</strong>). Pas taken aan met de knoppen (+1, -1, +5, -5).</p>
           </div>
           <div class="budget-bar-card">
             <div class="budget-header">
               <span>Budget Status:</span>
-              <strong id="karen-budget-text">1000 / 1000 punten over</strong>
+              <strong id="karen-budget-text">500 / 500 punten verdeeld (0 over)</strong>
             </div>
             <div class="progress-bar-bg"><div class="progress-bar-fill" id="karen-budget-progress" style="width: 100%;"></div></div>
           </div>
@@ -437,6 +437,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.13"></script>
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.14"></script>
 </body>
 </html>
