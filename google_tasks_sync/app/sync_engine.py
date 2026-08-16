@@ -348,6 +348,9 @@ class SyncEngine:
                         "current_list_title": list_title
                     })
         
+        tasks_pool.sort(key=lambda x: x.get("title", ""))
+        return tasks_pool
+        
     def create_single_task(self, title: str, list_title: str, sublist_name: Optional[str] = None, notes: str = "", due: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
         """Maakt een nieuwe taak aan in de opgegeven hoofdlijst, eventueel gekoppeld aan een sublijst map."""
         accounts = self.client.get_accounts()
