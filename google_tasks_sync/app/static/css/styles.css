@@ -599,30 +599,154 @@ html, body {
   background: #090d13;
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 8px 14px;
+  padding: 10px 14px;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
-.point-task-info { flex: 1; }
-.point-task-title { font-size: 13px; font-weight: 600; }
-.point-task-notes { font-size: 11px; color: var(--text-muted); }
+.point-task-info {
+  flex: 1;
+  min-width: 220px;
+}
+.point-task-title { font-size: 13.5px; font-weight: 600; }
+.point-task-notes { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
 
 .point-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .point-input {
-  width: 70px;
-  padding: 6px 8px;
+  width: 60px;
+  padding: 6px 4px;
   background: #161b22;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: #fff;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 13.5px;
+  font-weight: 700;
   text-align: center;
+}
+
+.btn-pt-change {
+  padding: 4px 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+/* Mobile & Touch Responsive Styles */
+@media (max-width: 768px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .nav-tabs-header {
+    width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding: 2px;
+  }
+
+  .nav-tab {
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .manager-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .manager-filters {
+    min-width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .search-input,
+  .filter-select {
+    width: 100%;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .toolbar-actions .btn {
+    flex: 1;
+    justify-content: center;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .wizard-stepper {
+    overflow-x: auto;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .step-item {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .step-line {
+    margin: 0 4px;
+    min-width: 12px;
+  }
+
+  .wizard-step-content {
+    padding: 12px 10px;
+  }
+
+  .point-task-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .point-controls {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .btn-pt-change {
+    flex: 1;
+    min-width: 34px;
+    text-align: center;
+    padding: 6px 4px;
+  }
+
+  .point-input {
+    flex: 1.2;
+    min-width: 48px;
+  }
+
+  .modal-card {
+    width: 95vw !important;
+    max-height: 90vh !important;
+    padding: 14px;
+  }
+
+  .draft-arena {
+    padding: 10px 8px;
+  }
+
+  .draft-pool-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Step 4: Averages Table */

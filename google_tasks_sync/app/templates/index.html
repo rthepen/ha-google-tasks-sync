@@ -223,15 +223,15 @@
           <div class="points-grid" id="step-2-points-grid"></div>
           <div class="step-actions">
             <button class="btn btn-outline" id="btn-step-2-prev">⬅ Vorige</button>
-            <button class="btn btn-primary" id="btn-step-2-next">Volgende: Gemiddelden Berekenen ➔</button>
+            <button class="btn btn-primary" id="btn-step-2-next">Volgende: Totale Punten Berekenen ➔</button>
           </div>
         </div>
 
-        <!-- STAP 3: Gemiddelden Overzicht -->
+        <!-- STAP 3: Totale Punten (Roy + Karen Opgeteld) -->
         <div class="wizard-step-content" id="step-3-content" style="display:none;">
           <div class="step-header">
-            <h2>Stap 3: Gemiddelde Punten per Taak</h2>
-            <p>Hieronder staan de taken gerangschikt op het gewogen gemiddelde van Roy & Karen.</p>
+            <h2>Stap 3: Totale Punten per Taak (Roy + Karen Opgeteld)</h2>
+            <p>Hieronder staan de taken gerangschikt op de <strong>totale som van punten</strong> die Roy en Karen samen hebben toegekend (zwaarste taken met de meeste punten bovenaan).</p>
           </div>
           <div class="averages-table-card">
             <table class="data-table">
@@ -240,7 +240,7 @@
                   <th>Taak Titel</th>
                   <th>Punten Roy</th>
                   <th>Punten Karen</th>
-                  <th>Gewogen Gemiddelde</th>
+                  <th>Totaal Punten (Som)</th>
                 </tr>
               </thead>
               <tbody id="step-3-averages-tbody"></tbody>
@@ -248,7 +248,7 @@
           </div>
           <div class="step-actions">
             <button class="btn btn-outline" id="btn-step-3-prev">⬅ Vorige</button>
-            <button class="btn btn-primary" id="btn-step-3-next">Volgende: Start Keuzeronde ➔</button>
+            <button class="btn btn-primary" id="btn-step-3-next">Volgende: Taken Verdelen ➔</button>
           </div>
         </div>
 
@@ -582,7 +582,7 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.22">
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.22"></script>
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.23">
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.23"></script>
 </body>
 </html>

@@ -713,12 +713,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- STAP 3: Calculate & Render Averages ---
+  // --- STAP 3: Calculate & Render Total Point Sums (Roy + Karen Opgeteld) ---
   function calculateAverages() {
     averageScores = allCaptainTasks.map(t => {
       const r = parseInt(royPoints[t.title]) || 0;
       const k = parseInt(karenPoints[t.title]) || 0;
-      const avg = Math.round(((r + k) / 2) * 10) / 10;
+      const sum = r + k;
       return {
         task: t,
         title: t.title,
@@ -726,12 +726,13 @@ document.addEventListener('DOMContentLoaded', () => {
         current_list_title: t.current_list_title,
         royPts: r,
         karenPts: k,
-        avgPts: avg
+        avgPts: sum,
+        sumPts: sum
       };
     });
 
-    // Sort descending by average points (zwaarste taken bovenaan)
-    averageScores.sort((a, b) => b.avgPts - a.avgPts);
+    // Sort descending by total points (zwaarste taken met meeste punten bovenaan)
+    averageScores.sort((a, b) => b.sumPts - a.sumPts);
 
     const tbody = document.getElementById('step-3-averages-tbody');
     if (tbody) {
@@ -740,7 +741,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><strong>${item.title}</strong><br><small style="color:var(--text-muted)"><span class="tag" style="font-size:10px; padding:1px 5px;">${item.current_list_title}</span> ${item.notes || ''}</small></td>
           <td style="color:var(--roy-color); font-weight:700;">${item.royPts} pt</td>
           <td style="color:var(--karen-color); font-weight:700;">${item.karenPts} pt</td>
-          <td><span class="tag" style="font-size:12px; font-weight:700;">⭐ ${item.avgPts} pt</span></td>
+          <td><span class="tag" style="font-size:12px; font-weight:700; background:rgba(47,129,247,0.2); color:#58a6ff;">⭐ ${item.sumPts} pt</span></td>
         </tr>
       `).join('');
     }
