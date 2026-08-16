@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 0. TAKEN BEHEERDER & CATEGORIE VERSCHUIVER LOGIC
+  // 0. TAKEN BEHEERDER & CATEGORIE VERSCHUIVER LOGIC (MET SUB-LIJSTEN)
   // =========================================================================
   let managerTasks = [];
   let pendingReassignments = {}; // { taskId: { task_id, current_list_id, target_list_title, title, notes, status } }
@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const managerStatsTag = document.getElementById('manager-stats-tag');
   const managerSearch = document.getElementById('manager-search');
   const managerFilterList = document.getElementById('manager-filter-list');
+  const managerFilterSublist = document.getElementById('manager-filter-sublist');
   const btnReloadManager = document.getElementById('btn-reload-manager');
   const btnSaveReassignments = document.getElementById('btn-save-reassignments');
   const pendingCountSpan = document.getElementById('reassign-pending-count');
@@ -60,6 +61,24 @@ document.addEventListener('DOMContentLoaded', () => {
     '05. Wisselende Kapiteins'
   ];
 
+  function extractSublist(notes, listTitle) {
+    if (notes) {
+      const match = notes.match(/^\[(.*?)\]/);
+      if (match) return match[1];
+    }
+    if (listTitle.includes('Roy Persoonlijk')) {
+      if (notes && (notes.includes('Portugal') || notes.includes('Brevet') || notes.includes('Buitenboordmotor') || notes.includes('Speervissen') || notes.includes('Fitness') || notes.includes('DEGIRO'))) {
+        return "Hobby's & Vrije Tijd";
+      }
+      return "Persoonlijke Zorg";
+    }
+    if (listTitle.includes('Karen Persoonlijk')) return "Persoonlijke Zorg";
+    if (listTitle.includes('Kapitein Roy')) return "Techniek & Beheer";
+    if (listTitle.includes('Kapitein Karen')) return "Huishouden & Zorg";
+    if (listTitle.includes('Wisselende Kapiteins')) return "Wisselend & Gezin";
+    return "Algemeen";
+  }
+
   async function loadManagerTasks() {
     managerTbody.innerHTML = '<tr><td colspan="3" class="loading-cell">Taken ophalen uit alle 5 Google Tasks lijsten...</td></tr>';
     pendingReassignments = {};
@@ -71,6 +90,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       managerTasks = data.tasks || [];
       managerStatsTag.textContent = `${managerTasks.length} taken in 5 lijsten`;
+      
+      // Update sublist filter options
+      const allSublists = new Set();
+      managerTasks.forEach(t => {
+        allSublists.add(extractSublist(t.notes, t.current_list_title));
+      });
+      
+      managerFilterSublist.innerHTML = '<option value="all">Alle Sub-lijsten</option>' + 
+        Array.from(allSublists).sort().map(s => `<option value="${s}">📂 ${s}</option>`).join('');
+
       renderManagerTable();
     } catch (e) {
       managerTbody.innerHTML = `<tr><td colspan="3" class="status-msg error">Fout: ${e.message}</td></tr>`;
@@ -79,12 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderManagerTable() {
     const query = (managerSearch.value || '').toLowerCase().trim();
-    const filter = managerFilterList.value;
+    const listFilter = managerFilterList.value;
+    const subFilter = managerFilterSublist.value;
 
     const filtered = managerTasks.filter(t => {
-      const matchesSearch = t.title.toLowerCase().includes(query) || (t.notes || '').toLowerCase().includes(query);
-      const matchesList = (filter === 'all') || (t.current_list_title === filter);
-      return matchesSearch && matchesList;
+      const sub = extractSublist(t.notes, t.current_list_title);
+      const matchesSearch = t.title.toLowerCase().includes(query) || (t.notes || '').toLowerCase().includes(query) || sub.toLowerCase().includes(query);
+      const matchesList = (listFilter === 'all') || (t.current_list_title === listFilter);
+      const matchesSub = (subFilter === 'all') || (sub === subFilter);
+      return matchesSearch && matchesList && matchesSub;
     });
 
     if (filtered.length === 0) {
@@ -92,31 +124,60 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    managerTbody.innerHTML = filtered.map((t, idx) => {
-      const isChanged = !!pendingReassignments[t.id];
-      const selectedTarget = isChanged ? pendingReassignments[t.id].target_list_title : t.current_list_title;
+    // Group by Sub-list
+    const grouped = {};
+    filtered.forEach(t => {
+      const sub = extractSublist(t.notes, t.current_list_title);
+      if (!grouped[sub]) grouped[sub] = [];
+      grouped[sub].push(t);
+    });
 
-      const optionsHtml = available5Lists.map(l => 
-        `<option value="${l}" ${l === selectedTarget ? 'selected' : ''}>${l}</option>`
-      ).join('');
-
-      return `
-        <tr class="${isChanged ? 'modified' : ''}" data-id="${t.id}">
-          <td>
-            <strong>${t.title}</strong>
-            ${t.notes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${t.notes}</div>` : ''}
-          </td>
-          <td>
-            <span class="tag" style="font-size:11px;">${t.current_list_title}</span>
-          </td>
-          <td>
-            <select class="task-list-select ${isChanged ? 'changed' : ''}" data-id="${t.id}">
-              ${optionsHtml}
-            </select>
+    let html = '';
+    Object.keys(grouped).sort().forEach(subName => {
+      const count = grouped[subName].length;
+      html += `
+        <tr class="sublist-header-row">
+          <td colspan="3">
+            <div class="sublist-header-badge">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              <strong>Sub-lijst: ${subName}</strong>
+              <span class="tag" style="margin-left:auto;">${count} taken</span>
+            </div>
           </td>
         </tr>
       `;
-    }).join('');
+
+      grouped[subName].forEach(t => {
+        const isChanged = !!pendingReassignments[t.id];
+        const selectedTarget = isChanged ? pendingReassignments[t.id].target_list_title : t.current_list_title;
+
+        const optionsHtml = available5Lists.map(l => 
+          `<option value="${l}" ${l === selectedTarget ? 'selected' : ''}>${l}</option>`
+        ).join('');
+
+        // Clean display notes
+        const cleanNotes = (t.notes || '').replace(/^\[(.*?)\]\s*/, '');
+
+        html += `
+          <tr class="${isChanged ? 'modified' : ''}" data-id="${t.id}">
+            <td style="padding-left:24px;">
+              <strong>${t.title}</strong>
+              ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${cleanNotes}</div>` : ''}
+            </td>
+            <td>
+              <span class="tag" style="font-size:11px;">${t.current_list_title}</span>
+            </td>
+            <td>
+              <select class="task-list-select ${isChanged ? 'changed' : ''}" data-id="${t.id}">
+                ${optionsHtml}
+              </select>
+            </td>
+          </tr>
+        `;
+      });
+    });
+
+    managerTbody.innerHTML = html;
 
     // Attach change handlers
     managerTbody.querySelectorAll('.task-list-select').forEach(sel => {
@@ -155,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   managerSearch.addEventListener('input', renderManagerTable);
   managerFilterList.addEventListener('change', renderManagerTable);
+  managerFilterSublist.addEventListener('change', renderManagerTable);
   btnReloadManager.addEventListener('click', loadManagerTasks);
 
   btnSaveReassignments.addEventListener('click', async () => {

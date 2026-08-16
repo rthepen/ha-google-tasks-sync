@@ -378,6 +378,21 @@ html, body {
   background: rgba(47, 129, 247, 0.08);
 }
 
+.sublist-header-row td {
+  background: #1c2128 !important;
+  padding: 8px 14px !important;
+  border-top: 1px solid #30363d;
+  border-bottom: 1px solid #30363d;
+}
+
+.sublist-header-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #79c0ff;
+  font-size: 12.5px;
+}
+
 .task-list-select {
   width: 100%;
   background: #161b22;

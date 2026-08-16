@@ -111,19 +111,23 @@
       <div class="manager-panel">
         <div class="manager-toolbar">
           <div class="toolbar-left">
-            <span class="editor-title">Alle Taken & Categorieën</span>
+            <span class="editor-title">Alle Taken & Sub-lijsten</span>
             <span class="tag" id="manager-stats-tag">Laden...</span>
           </div>
 
           <div class="manager-filters">
             <input type="text" id="manager-search" placeholder="🔍 Zoek taak..." class="search-input">
             <select id="manager-filter-list" class="filter-select">
-              <option value="all">Alle 5 Lijsten</option>
+              <option value="all">Alle 5 Hoofdlijsten</option>
               <option value="01. Roy Persoonlijk">01. Roy Persoonlijk</option>
               <option value="02. Karen Persoonlijk">02. Karen Persoonlijk</option>
               <option value="03. Kapitein Roy">03. Kapitein Roy</option>
               <option value="04. Kapitein Karen">04. Kapitein Karen</option>
               <option value="05. Wisselende Kapiteins">05. Wisselende Kapiteins</option>
+            </select>
+            <select id="manager-filter-sublist" class="filter-select">
+              <option value="all">Alle Sub-lijsten</option>
+              <!-- Dynamisch gevuld -->
             </select>
           </div>
 
