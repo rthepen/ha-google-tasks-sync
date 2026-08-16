@@ -284,7 +284,120 @@ html, body {
 .log-entry.level-success { color: #3fb950; }
 
 /* ================================================= */
-/* VIEW 2: WIZARD KAPITEIN VERDELER STYLES */
+/* VIEW 2: COMPLETE TAKEN BEHEERDER STYLES */
+/* ================================================= */
+.manager-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.manager-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: #161b22;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.manager-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 450px;
+}
+
+.search-input {
+  flex: 1;
+  background: #090d13;
+  border: 1px solid var(--border-color);
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.search-input:focus { border-color: var(--primary); }
+
+.filter-select {
+  background: #090d13;
+  border: 1px solid var(--border-color);
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  outline: none;
+  cursor: pointer;
+}
+
+.manager-table-container {
+  flex: 1;
+  overflow-y: auto;
+  background: #090d13;
+}
+
+.manager-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.manager-table th {
+  background: #161b22;
+  position: sticky;
+  top: 0;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  z-index: 2;
+}
+
+.manager-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid #1c2128;
+  vertical-align: middle;
+}
+
+.manager-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.manager-table tr.modified td {
+  background: rgba(47, 129, 247, 0.08);
+}
+
+.task-list-select {
+  width: 100%;
+  background: #161b22;
+  border: 1px solid var(--border-color);
+  color: #58a6ff;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.task-list-select.changed {
+  border-color: #2ea043;
+  color: #3fb950;
+  background: #0d1e13;
+}
+
+/* ================================================= */
+/* VIEW 3: WIZARD KAPITEIN VERDELER STYLES */
 /* ================================================= */
 
 .divider-wizard-card {

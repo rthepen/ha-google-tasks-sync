@@ -122,13 +122,32 @@ async def validate_json(payload: Dict[str, Any] = Body(...)):
         "message": f"Geldige JSON structuur gevonden met {len(lists)} elementen."
     }
 
-# --- Captain Tasks Divider API ---
+# --- Captain & Task Manager API ---
+
+@app.get("/api/tasks/all")
+async def get_all_tasks():
+    try:
+        tasks = sync_engine.get_all_tasks()
+        return {"tasks": tasks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/divider/tasks")
 async def get_divider_tasks():
     try:
-        tasks = sync_engine.get_captain_tasks()
+        tasks = sync_engine.get_all_tasks()
         return {"tasks": tasks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class BatchReassignPayload(BaseModel):
+    moves: List[Dict[str, Any]]
+
+@app.post("/api/tasks/reassign")
+async def reassign_tasks(payload: BatchReassignPayload):
+    try:
+        res = sync_engine.reassign_tasks_batch(payload.moves)
+        return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

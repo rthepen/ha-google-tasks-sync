@@ -266,8 +266,8 @@ class SyncEngine:
         finally:
             self.is_syncing = False
 
-    def get_captain_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Haalt alle taken op uit de relevante lijsten (09. Roy Persoonlijk, 10. Karen Persoonlijk, 11. Kapitein Roy, 12. Kapitein Karen, 13. Wisselende Kapiteins)."""
+    def get_all_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Haalt alle taken op uit alle lijsten met hun huidige lijstnaam."""
         accounts = self.client.get_accounts()
         if not accounts:
             return []
@@ -275,13 +275,12 @@ class SyncEngine:
         target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
         tasklists = self.client.list_tasklists(target_account)
         
-        target_keywords = ["persoonlijk", "kapitein", "wisselende"]
-        captain_lists = [l for l in tasklists if any(k in l.get("title", "").lower() for k in target_keywords)]
-        
         tasks_pool = []
-        for cl in captain_lists:
+        for cl in tasklists:
             list_id = cl["id"]
             list_title = cl["title"]
+            if list_title.lower() == "to do":
+                continue
             raw_tasks = self.client.list_tasks(target_account, list_id)
             for t in raw_tasks:
                 tasks_pool.append({
@@ -293,9 +292,56 @@ class SyncEngine:
                     "current_list_title": list_title
                 })
         
-        # Sort by title
+        # Sorteer op huidige lijst en titel
         tasks_pool.sort(key=lambda x: (x.get("current_list_title", ""), x.get("title", "")))
         return tasks_pool
+
+    def reassign_tasks_batch(self, moves: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Verplaatst taken naar een andere lijst (doel-lijst). moves = [{ task_id, current_list_id, target_list_title, title, notes, status }]"""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            raise ValueError("Geen accounts")
+        
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+        lists_by_title = {l["title"]: l["id"] for l in tasklists}
+
+        success_count = 0
+        self.log(f"Start batch herindeling van {len(moves)} taken...")
+
+        for m in moves:
+            t_id = m.get("task_id")
+            cur_list_id = m.get("current_list_id")
+            target_title = m.get("target_list_title")
+            t_title = m.get("title")
+            t_notes = m.get("notes", "")
+            t_status = m.get("status", "needsAction")
+
+            target_list_id = lists_by_title.get(target_title)
+            if not target_list_id:
+                # Maak lijst aan indien niet bestaand
+                new_l = self.client.create_tasklist(target_account, target_title)
+                if new_l:
+                    target_list_id = new_l["id"]
+                    lists_by_title[target_title] = target_list_id
+
+            if target_list_id and cur_list_id != target_list_id:
+                # Maak aan in nieuwe lijst
+                self.client.create_task(target_account, target_list_id, {
+                    "title": t_title,
+                    "notes": t_notes,
+                    "status": t_status
+                })
+                # Verwijder uit oude lijst
+                if t_id and cur_list_id:
+                    self.client.delete_task(target_account, cur_list_id, t_id)
+                
+                self.log(f"Taak '{t_title}' verplaatst naar '{target_title}'")
+                success_count += 1
+                time.sleep(0.04)
+
+        self.log(f"Batch herindeling voltooid: {success_count} taken verplaatst.", level="success")
+        return {"success": True, "moved_count": success_count}
 
     def apply_captain_division(self, roy_tasks: List[Dict[str, Any]], karen_tasks: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
         """Past de verdeling toe: verplaatst/zet taken in 11. Kapitein Roy en 12. Kapitein Karen."""

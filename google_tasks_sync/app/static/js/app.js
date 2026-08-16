@@ -1,24 +1,31 @@
 document.addEventListener('DOMContentLoaded', () => {
   const rootPath = document.body.dataset.rootPath || '';
   
-  // Tab Switcher between JSON Editor and Kapitein Verdeler
+  // Tab Switcher between JSON Editor, Taken Beheerder and Kapitein Verdeler
   const tabBtnEditor = document.getElementById('tab-btn-editor');
+  const tabBtnManager = document.getElementById('tab-btn-manager');
   const tabBtnDivider = document.getElementById('tab-btn-divider');
+  
   const viewEditor = document.getElementById('view-editor');
+  const viewManager = document.getElementById('view-manager');
   const viewDivider = document.getElementById('view-divider');
 
-  tabBtnEditor.addEventListener('click', () => {
-    tabBtnEditor.classList.add('active');
-    tabBtnDivider.classList.remove('active');
-    viewEditor.style.display = 'flex';
-    viewDivider.style.display = 'none';
+  function switchTab(activeBtn, activeView) {
+    [tabBtnEditor, tabBtnManager, tabBtnDivider].forEach(b => b.classList.remove('active'));
+    [viewEditor, viewManager, viewDivider].forEach(v => v.style.display = 'none');
+    activeBtn.classList.add('active');
+    activeView.style.display = 'flex';
+  }
+
+  tabBtnEditor.addEventListener('click', () => switchTab(tabBtnEditor, viewEditor));
+  
+  tabBtnManager.addEventListener('click', () => {
+    switchTab(tabBtnManager, viewManager);
+    loadManagerTasks();
   });
 
   tabBtnDivider.addEventListener('click', () => {
-    tabBtnDivider.classList.add('active');
-    tabBtnEditor.classList.remove('active');
-    viewEditor.style.display = 'none';
-    viewDivider.style.display = 'flex';
+    switchTab(tabBtnDivider, viewDivider);
     initDividerWizard();
   });
 
@@ -30,6 +37,159 @@ document.addEventListener('DOMContentLoaded', () => {
     toast.classList.add('show');
     setTimeout(() => { toast.classList.remove('show'); }, 3000);
   }
+
+  // =========================================================================
+  // 0. TAKEN BEHEERDER & CATEGORIE VERSCHUIVER LOGIC
+  // =========================================================================
+  let managerTasks = [];
+  let pendingReassignments = {}; // { taskId: { task_id, current_list_id, target_list_title, title, notes, status } }
+
+  const managerTbody = document.getElementById('manager-tasks-tbody');
+  const managerStatsTag = document.getElementById('manager-stats-tag');
+  const managerSearch = document.getElementById('manager-search');
+  const managerFilterList = document.getElementById('manager-filter-list');
+  const btnReloadManager = document.getElementById('btn-reload-manager');
+  const btnSaveReassignments = document.getElementById('btn-save-reassignments');
+  const pendingCountSpan = document.getElementById('reassign-pending-count');
+
+  const available5Lists = [
+    '01. Roy Persoonlijk',
+    '02. Karen Persoonlijk',
+    '03. Kapitein Roy',
+    '04. Kapitein Karen',
+    '05. Wisselende Kapiteins'
+  ];
+
+  async function loadManagerTasks() {
+    managerTbody.innerHTML = '<tr><td colspan="3" class="loading-cell">Taken ophalen uit alle 5 Google Tasks lijsten...</td></tr>';
+    pendingReassignments = {};
+    updatePendingBadge();
+
+    try {
+      const res = await fetch(`${rootPath}/api/tasks/all`);
+      if (!res.ok) throw new Error('Kon taken niet ophalen');
+      const data = await res.json();
+      managerTasks = data.tasks || [];
+      managerStatsTag.textContent = `${managerTasks.length} taken in 5 lijsten`;
+      renderManagerTable();
+    } catch (e) {
+      managerTbody.innerHTML = `<tr><td colspan="3" class="status-msg error">Fout: ${e.message}</td></tr>`;
+    }
+  }
+
+  function renderManagerTable() {
+    const query = (managerSearch.value || '').toLowerCase().trim();
+    const filter = managerFilterList.value;
+
+    const filtered = managerTasks.filter(t => {
+      const matchesSearch = t.title.toLowerCase().includes(query) || (t.notes || '').toLowerCase().includes(query);
+      const matchesList = (filter === 'all') || (t.current_list_title === filter);
+      return matchesSearch && matchesList;
+    });
+
+    if (filtered.length === 0) {
+      managerTbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:var(--text-muted);">Geen taken gevonden met dit filter.</td></tr>';
+      return;
+    }
+
+    managerTbody.innerHTML = filtered.map((t, idx) => {
+      const isChanged = !!pendingReassignments[t.id];
+      const selectedTarget = isChanged ? pendingReassignments[t.id].target_list_title : t.current_list_title;
+
+      const optionsHtml = available5Lists.map(l => 
+        `<option value="${l}" ${l === selectedTarget ? 'selected' : ''}>${l}</option>`
+      ).join('');
+
+      return `
+        <tr class="${isChanged ? 'modified' : ''}" data-id="${t.id}">
+          <td>
+            <strong>${t.title}</strong>
+            ${t.notes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${t.notes}</div>` : ''}
+          </td>
+          <td>
+            <span class="tag" style="font-size:11px;">${t.current_list_title}</span>
+          </td>
+          <td>
+            <select class="task-list-select ${isChanged ? 'changed' : ''}" data-id="${t.id}">
+              ${optionsHtml}
+            </select>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    // Attach change handlers
+    managerTbody.querySelectorAll('.task-list-select').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const taskId = sel.dataset.id;
+        const targetList = sel.value;
+        const task = managerTasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        if (targetList !== task.current_list_title) {
+          pendingReassignments[taskId] = {
+            task_id: task.id,
+            current_list_id: task.current_list_id,
+            target_list_title: targetList,
+            title: task.title,
+            notes: task.notes,
+            status: task.status
+          };
+          sel.classList.add('changed');
+          sel.closest('tr').classList.add('modified');
+        } else {
+          delete pendingReassignments[taskId];
+          sel.classList.remove('changed');
+          sel.closest('tr').classList.remove('modified');
+        }
+        updatePendingBadge();
+      });
+    });
+  }
+
+  function updatePendingBadge() {
+    const count = Object.keys(pendingReassignments).length;
+    pendingCountSpan.textContent = count;
+    btnSaveReassignments.disabled = (count === 0);
+  }
+
+  managerSearch.addEventListener('input', renderManagerTable);
+  managerFilterList.addEventListener('change', renderManagerTable);
+  btnReloadManager.addEventListener('click', loadManagerTasks);
+
+  btnSaveReassignments.addEventListener('click', async () => {
+    const moves = Object.values(pendingReassignments);
+    if (moves.length === 0) return;
+
+    btnSaveReassignments.disabled = true;
+    btnSaveReassignments.innerHTML = '<span class="badge syncing">Bezig met verplaatsen...</span>';
+    showToast(`Bezig met het verplaatsen van ${moves.length} taken naar Google Tasks...`);
+
+    try {
+      const res = await fetch(`${rootPath}/api/tasks/reassign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moves })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✓ ${data.moved_count} taken succesvol verplaatst in Google Tasks! 🎉`);
+        loadManagerTasks();
+        loadJsonExport();
+      } else {
+        throw new Error(data.error || 'Fout');
+      }
+    } catch (e) {
+      showToast('Fout bij verplaatsen: ' + e.message, true);
+    } finally {
+      btnSaveReassignments.disabled = false;
+      btnSaveReassignments.innerHTML = `
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+        Wijzigingen Syncen naar Google Tasks! (<span id="reassign-pending-count">0</span>)
+      `;
+      updatePendingBadge();
+    }
+  });
 
   // =========================================================================
   // 1. JSON EDITOR & DEBUG LOG LOGIC

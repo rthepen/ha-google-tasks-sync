@@ -1,6 +1,6 @@
 name: "Google Tasks Multi-Account Sync"
-description: "Automatically sync Google Tasks across multiple Google accounts with a live JSON editor, 5-list Kapitein & Persoonlijk Verdeler and Ingress Web UI"
-version: "1.1.1"
+description: "Automatically sync Google Tasks across multiple Google accounts with a live JSON editor, Taken Beheerder with Dropdown Reassignment, Kapitein Verdeler and Ingress Web UI"
+version: "1.1.2"
 slug: "google_tasks_sync"
 init: false
 arch:
