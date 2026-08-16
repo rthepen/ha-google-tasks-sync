@@ -74,6 +74,10 @@
           </div>
 
           <div class="toolbar-actions">
+            <button class="btn btn-primary" id="btn-open-add-task-modal" title="Nieuwe taak toevoegen aan een hoofdlijst en sublijst">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              ➕ Nieuwe Taak
+            </button>
             <button class="btn btn-outline" id="btn-open-print-modal" title="Schematische Takenkaart Afdrukken / Exporteren">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
               🖨️ Afdrukken Overzicht
@@ -353,6 +357,76 @@
     </main>
   </div>
 
+  <!-- Nieuwe Taak Toevoegen Modal -->
+  <div id="add-task-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <h2>➕ Nieuwe Taak Toevoegen</h2>
+        </div>
+        <button class="modal-close" id="btn-close-add-task-modal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="add-task-form" style="display:flex; flex-direction:column; gap:14px;">
+          <div class="form-group">
+            <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+              Taak Titel <span style="color:#da3633;">*</span>:
+            </label>
+            <input type="text" id="add-task-title" placeholder="Bijv. 05. Meterkast kabelgoot monteren" required class="search-input" style="width:100%; font-size:13.5px; padding:8px 12px;">
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div class="form-group">
+              <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+                Hoofdlijst <span style="color:#da3633;">*</span>:
+              </label>
+              <select id="add-task-list" class="filter-select" style="width:100%; padding:8px 10px; font-size:13px;" required>
+                <option value="01. Roy Persoonlijk">01. Roy Persoonlijk</option>
+                <option value="02. Karen Persoonlijk">02. Karen Persoonlijk</option>
+                <option value="03. Kapitein Roy">03. Kapitein Roy</option>
+                <option value="04. Kapitein Karen">04. Kapitein Karen</option>
+                <option value="05. Wisselende Kapiteins" selected>05. Wisselende Kapiteins</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+                Sub-lijst / Thema:
+              </label>
+              <select id="add-task-sublist" class="filter-select" style="width:100%; padding:8px 10px; font-size:13px;">
+                <!-- Dynamisch gevuld -->
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+              Of typ een nieuwe Sub-lijst / Ruimte:
+            </label>
+            <input type="text" id="add-task-custom-sublist" placeholder="Optioneel, bijv. Bouw - Tuinhuis of Gezinshuis" class="search-input" style="width:100%; font-size:13px; padding:7px 12px;">
+          </div>
+
+          <div class="form-group">
+            <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+              Taakdetails / Notities:
+            </label>
+            <textarea id="add-task-notes" placeholder="Optionele toelichting, instructies of details over de taak..." style="width:100%; height:75px; background:#090d13; border:1px solid var(--border-color); color:var(--text-main); border-radius:6px; padding:8px 12px; font-size:13px; font-family:inherit; resize:vertical;"></textarea>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btn-cancel-add-task">Annuleren</button>
+        <button class="btn btn-success btn-lg" id="btn-submit-add-task">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          Taak Toevoegen aan Google Tasks 🚀
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Print Configuration & Preview Modal -->
   <div id="print-modal" class="modal-overlay" style="display:none;">
     <div class="modal-card">
@@ -437,6 +511,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.14"></script>
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.16"></script>
 </body>
 </html>

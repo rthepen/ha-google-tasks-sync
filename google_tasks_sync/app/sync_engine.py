@@ -346,8 +346,78 @@ class SyncEngine:
                         "current_list_title": list_title
                     })
         
-        tasks_pool.sort(key=lambda x: x.get("title", ""))
-        return tasks_pool
+    def create_single_task(self, title: str, list_title: str, sublist_name: Optional[str] = None, notes: str = "", due: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Maakt een nieuwe taak aan in de opgegeven hoofdlijst, eventueel gekoppeld aan een sublijst map."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            raise ValueError("Geen accounts geconfigureerd")
+        
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+        lists_by_title = {l["title"]: l["id"] for l in tasklists}
+
+        list_id = lists_by_title.get(list_title)
+        if not list_id:
+            new_l = self.client.create_tasklist(target_account, list_title)
+            if new_l:
+                list_id = new_l["id"]
+                lists_by_title[list_title] = list_id
+            else:
+                raise ValueError(f"Kon lijst '{list_title}' niet aanmaken")
+
+        # Format notes with sublist tag if provided
+        final_notes = notes.strip()
+        if sublist_name and sublist_name.strip() and not sublist_name.lower().startswith("alle"):
+            clean_sub = sublist_name.replace("📂", "").strip()
+            if not final_notes.startswith("["):
+                final_notes = f"[{clean_sub}] {final_notes}".strip()
+
+        # Check existing tasks in target list for deduplication
+        raw_existing = self.client.list_tasks(target_account, list_id)
+        parent_folder_id = None
+        
+        clean_sub_name = (sublist_name or "").replace("📂", "").strip()
+        for t in raw_existing:
+            if t.get("deleted"):
+                continue
+            # Look for matching parent folder header like '📂 Gezinshuis' or '📂 Bouw Woning'
+            if clean_sub_name and t.get("title", "").strip().lower() in (f"📂 {clean_sub_name.lower()}", clean_sub_name.lower()):
+                parent_folder_id = t["id"]
+            # Avoid duplicate task
+            if t.get("title", "").strip() == title.strip():
+                # Task already exists, update it instead
+                self.client.update_task(target_account, list_id, t["id"], {
+                    "title": title.strip(),
+                    "notes": final_notes,
+                    "status": "needsAction"
+                })
+                self.log(f"Bestaande taak '{title}' bijgewerkt in '{list_title}'")
+                return {"success": True, "task_id": t["id"], "action": "updated"}
+
+        # Create new task
+        body = {
+            "title": title.strip(),
+            "notes": final_notes,
+            "status": "needsAction"
+        }
+        if due:
+            body["due"] = due
+
+        created = self.client.create_task(target_account, list_id, body)
+        if not created or "id" not in created:
+            raise ValueError("Aanmaken van taak mislukt bij Google Tasks")
+
+        new_task_id = created["id"]
+
+        # If we have a parent folder, move task underneath it
+        if parent_folder_id:
+            try:
+                self.client.move_task(target_account, list_id, new_task_id, parent_id=parent_folder_id)
+            except Exception:
+                pass
+
+        self.log(f"Nieuwe taak '{title}' aangemaakt in '{list_title}' (sub: {clean_sub_name or 'Geen'})", level="success")
+        return {"success": True, "task_id": new_task_id, "action": "created"}
 
     def reassign_tasks_batch(self, moves: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
         """Verplaatst taken naar een andere lijst (doel-lijst) en voorkomt duplicaten."""

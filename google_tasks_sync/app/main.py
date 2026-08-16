@@ -140,6 +140,27 @@ async def get_divider_tasks():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class CreateTaskPayload(BaseModel):
+    title: str
+    list_title: str
+    sublist_name: Optional[str] = None
+    notes: Optional[str] = ""
+    due: Optional[str] = None
+
+@app.post("/api/tasks/create")
+async def create_task(payload: CreateTaskPayload):
+    try:
+        res = sync_engine.create_single_task(
+            title=payload.title,
+            list_title=payload.list_title,
+            sublist_name=payload.sublist_name,
+            notes=payload.notes or "",
+            due=payload.due
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 class BatchReassignPayload(BaseModel):
     moves: List[Dict[str, Any]]
 

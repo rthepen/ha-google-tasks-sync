@@ -1209,4 +1209,101 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // =========================================================================
+  // 4. NIEUWE TAAK TOEVOEGEN MODAL LOGIC
+  // =========================================================================
+  const btnOpenAddTaskModal = document.getElementById('btn-open-add-task-modal');
+  const addTaskModal = document.getElementById('add-task-modal');
+  const btnCloseAddTaskModal = document.getElementById('btn-close-add-task-modal');
+  const btnCancelAddTask = document.getElementById('btn-cancel-add-task');
+  const btnSubmitAddTask = document.getElementById('btn-submit-add-task');
+
+  const addTaskTitle = document.getElementById('add-task-title');
+  const addTaskList = document.getElementById('add-task-list');
+  const addTaskSublist = document.getElementById('add-task-sublist');
+  const addTaskCustomSublist = document.getElementById('add-task-custom-sublist');
+  const addTaskNotes = document.getElementById('add-task-notes');
+
+  function populateAddTaskSublists() {
+    if (!addTaskSublist) return;
+    const allFoundSublists = new Set();
+    managerTasks.forEach(t => {
+      allFoundSublists.add(extractSublist(t.notes, t.current_list_title, t.title));
+    });
+
+    const sorted = Array.from(allFoundSublists).filter(s => s && s !== 'Algemeen').sort();
+    addTaskSublist.innerHTML = '<option value="">Geen / Nieuw hieronder typen</option>' + 
+      sorted.map(s => `<option value="${s}">📂 ${s}</option>`).join('');
+  }
+
+  function openAddTaskModal() {
+    if (!addTaskModal) return;
+    populateAddTaskSublists();
+    if (addTaskTitle) addTaskTitle.value = '';
+    if (addTaskCustomSublist) addTaskCustomSublist.value = '';
+    if (addTaskNotes) addTaskNotes.value = '';
+    if (addTaskList) addTaskList.value = '05. Wisselende Kapiteins';
+    addTaskModal.style.display = 'flex';
+    if (addTaskTitle) addTaskTitle.focus();
+  }
+
+  function closeAddTaskModal() {
+    if (addTaskModal) addTaskModal.style.display = 'none';
+  }
+
+  if (btnOpenAddTaskModal) btnOpenAddTaskModal.addEventListener('click', openAddTaskModal);
+  if (btnCloseAddTaskModal) btnCloseAddTaskModal.addEventListener('click', closeAddTaskModal);
+  if (btnCancelAddTask) btnCancelAddTask.addEventListener('click', closeAddTaskModal);
+
+  if (btnSubmitAddTask) {
+    btnSubmitAddTask.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const title = (addTaskTitle.value || '').trim();
+      if (!title) {
+        showToast('Vul een taaktitel in!', true);
+        if (addTaskTitle) addTaskTitle.focus();
+        return;
+      }
+
+      const listTitle = addTaskList.value;
+      const chosenSublist = (addTaskCustomSublist.value || '').trim() || addTaskSublist.value;
+      const notes = (addTaskNotes.value || '').trim();
+
+      btnSubmitAddTask.disabled = true;
+      btnSubmitAddTask.textContent = 'Bezig met toevoegen aan Google Tasks...';
+      showToast('Bezig met toevoegen aan Google Tasks...');
+
+      try {
+        const res = await fetch(`${rootPath}/api/tasks/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title,
+            list_title: listTitle,
+            sublist_name: chosenSublist,
+            notes: notes
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          showToast(`✓ Taak '${title}' succesvol toegevoegd aan Google Tasks! 🚀`);
+          closeAddTaskModal();
+          loadManagerTasks();
+          loadJsonExport();
+        } else {
+          throw new Error(data.detail || data.error || 'Fout bij aanmaken');
+        }
+      } catch (err) {
+        showToast('Fout: ' + err.message, true);
+      } finally {
+        btnSubmitAddTask.disabled = false;
+        btnSubmitAddTask.innerHTML = `
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          Taak Toevoegen aan Google Tasks 🚀
+        `;
+      }
+    });
+  }
+
 });
