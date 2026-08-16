@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from google_client import GoogleTasksClient
 from sync_engine import SyncEngine
 
-app = FastAPI(title="Google Tasks Multi-Sync", version="1.0.0")
+app = FastAPI(title="Google Tasks Multi-Sync", version="1.0.1")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
@@ -47,15 +47,28 @@ if auto_sync:
 # --- Web UI Routes ---
 
 @app.get("/", response_class=HTMLResponse)
+@app.get("/index.html", response_class=HTMLResponse)
 async def index(request: Request):
     # Support Home Assistant Ingress base path
-    root_path = request.headers.get("X-Ingress-Path", "")
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "root_path": root_path,
-        "sync_interval": sync_interval,
-        "auto_sync": auto_sync
-    })
+    root_path = request.headers.get("X-Ingress-Path", "").rstrip("/")
+    try:
+        return templates.TemplateResponse(
+            request=request,
+            name="index.html",
+            context={
+                "root_path": root_path,
+                "sync_interval": sync_interval,
+                "auto_sync": auto_sync
+            }
+        )
+    except Exception as e:
+        # Universal fallback: read template directly and substitute variables
+        index_file = os.path.join(TEMPLATES_DIR, "index.html")
+        with open(index_file, "r", encoding="utf-8") as f:
+            html = f.read()
+        html = html.replace("{{ root_path }}", root_path)
+        html = html.replace("{{ sync_interval }}", str(sync_interval))
+        return HTMLResponse(content=html)
 
 # --- API Endpoints ---
 
