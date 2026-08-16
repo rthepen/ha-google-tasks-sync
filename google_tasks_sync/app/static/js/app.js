@@ -61,21 +61,37 @@ document.addEventListener('DOMContentLoaded', () => {
     '05. Wisselende Kapiteins'
   ];
 
-  function extractSublist(notes, listTitle) {
+  function extractSublist(notes, listTitle, taskTitle) {
     if (notes) {
       const match = notes.match(/^\[(.*?)\]/);
       if (match) return match[1];
     }
+    const tLow = ((taskTitle || '') + ' ' + (notes || '')).toLowerCase();
+    
     if (listTitle.includes('Roy Persoonlijk')) {
-      if (notes && (notes.includes('Portugal') || notes.includes('Brevet') || notes.includes('Buitenboordmotor') || notes.includes('Speervissen') || notes.includes('Fitness') || notes.includes('DEGIRO'))) {
+      if (tLow.includes('brevet') || tLow.includes('zeilboot') || tLow.includes('buitenboordmotor') || tLow.includes('speervissen') || tLow.includes('portugal')) {
         return "Hobby's & Vrije Tijd";
       }
       return "Persoonlijke Zorg";
     }
     if (listTitle.includes('Karen Persoonlijk')) return "Persoonlijke Zorg";
-    if (listTitle.includes('Kapitein Roy')) return "Techniek & Beheer";
-    if (listTitle.includes('Kapitein Karen')) return "Huishouden & Zorg";
-    if (listTitle.includes('Wisselende Kapiteins')) return "Wisselend & Gezin";
+    if (listTitle.includes('Kapitein Roy')) {
+      if (tLow.includes('gezinshuis') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('evaluatie') || tLow.includes('rapportage')) {
+        return "Gezinshuis";
+      }
+      return "Techniek & Beheer";
+    }
+    if (listTitle.includes('Kapitein Karen')) {
+      if (tLow.includes('anticonceptie')) return "Persoonlijke Zorg";
+      if (tLow.includes('kavelweg')) return "Gezinshuis";
+      return "Huishouden & Zorg";
+    }
+    if (listTitle.includes('Wisselende Kapiteins')) {
+      const bouwKw = ['waterzijde', 'luchtleidingen', 'ha regeling', 'elektra', 'gipsplaten', 'xps', 'laminaat', 'keuken', 'naden', 'rachelwerk', 'luchtkanalen', 'muren', 'voorzetwanden', 'leidingen', 'meterkast', '3d-ontwerp', 'packs', 'omvormer', 'pv-panelen', 'ac/dc', 'mqtt', 'esp ', 'dashboard'];
+      if (bouwKw.some(k => tLow.includes(k))) return "Bouw Woning";
+      if (tLow.includes('maandrapportage') || tLow.includes('evaluatie') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('gastheerschap') || tLow.includes('beschikbaarheid')) return "Gezinshuis";
+      return "Wisselend & Gezin";
+    }
     return "Algemeen";
   }
 
@@ -88,13 +104,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(`${rootPath}/api/tasks/all`);
       if (!res.ok) throw new Error('Kon taken niet ophalen');
       const data = await res.json();
-      managerTasks = data.tasks || [];
+      const rawTasks = data.tasks || [];
+      // Filter out folder header tasks so only real tasks appear in the list
+      managerTasks = rawTasks.filter(t => !t.title.startsWith('📂 '));
       managerStatsTag.textContent = `${managerTasks.length} taken in 5 lijsten`;
       
       // Update sublist filter options
       const allSublists = new Set();
       managerTasks.forEach(t => {
-        allSublists.add(extractSublist(t.notes, t.current_list_title));
+        allSublists.add(extractSublist(t.notes, t.current_list_title, t.title));
       });
       
       managerFilterSublist.innerHTML = '<option value="all">Alle Sub-lijsten</option>' + 
@@ -112,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const subFilter = managerFilterSublist.value;
 
     const filtered = managerTasks.filter(t => {
-      const sub = extractSublist(t.notes, t.current_list_title);
+      const sub = extractSublist(t.notes, t.current_list_title, t.title);
       const matchesSearch = t.title.toLowerCase().includes(query) || (t.notes || '').toLowerCase().includes(query) || sub.toLowerCase().includes(query);
       const matchesList = (listFilter === 'all') || (t.current_list_title === listFilter);
       const matchesSub = (subFilter === 'all') || (sub === subFilter);
@@ -127,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Group by Sub-list
     const grouped = {};
     filtered.forEach(t => {
-      const sub = extractSublist(t.notes, t.current_list_title);
+      const sub = extractSublist(t.notes, t.current_list_title, t.title);
       if (!grouped[sub]) grouped[sub] = [];
       grouped[sub].push(t);
     });
