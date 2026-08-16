@@ -70,12 +70,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSaveReassignments = document.getElementById('btn-save-reassignments');
   const pendingCountSpan = document.getElementById('reassign-pending-count');
 
-  const available5Lists = [
+  const availableLists = [
     '01. Roy Persoonlijk',
     '02. Karen Persoonlijk',
     '03. Kapitein Roy',
     '04. Kapitein Karen',
-    '05. Wisselende Kapiteins'
+    '05. Wisselende Kapiteins',
+    '06. Twee Kapiteins (Samen Doen)'
   ];
 
   function extractSublist(notes, listTitle, taskTitle) {
@@ -95,6 +96,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const tLow = ((taskTitle || '') + ' ' + (notes || '')).toLowerCase();
     
+    if (listTitle.includes('Twee Kapiteins') || listTitle.includes('Samen Doen')) {
+      return "01. Gezamenlijk (Samen Besluiten)";
+    }
     if (listTitle.includes('Roy Persoonlijk')) {
       if (tLow.includes('brevet') || tLow.includes('zeilboot') || tLow.includes('buitenboordmotor') || tLow.includes('speervissen') || tLow.includes('portugal')) {
         return "01. Hobby's & Vrije Tijd";
@@ -208,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isChanged = !!pendingReassignments[t.id];
         const selectedTarget = isChanged ? pendingReassignments[t.id].target_list_title : t.current_list_title;
 
-        const optionsHtml = available5Lists.map(l => 
+        const optionsHtml = availableLists.map(l => 
           `<option value="${l}" ${l === selectedTarget ? 'selected' : ''}>${l}</option>`
         ).join('');
 
@@ -1020,7 +1024,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnPrintSelectAllSublists = document.getElementById('btn-print-select-all-sublists');
   const btnPrintDeselectAllSublists = document.getElementById('btn-print-deselect-all-sublists');
 
-  let selectedPrintLists = new Set(available5Lists);
+  let selectedPrintLists = new Set(availableLists);
   let selectedPrintSublists = new Set();
 
   function openPrintModal() {
@@ -1037,7 +1041,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Populate main lists checkboxes
-    printListsContainer.innerHTML = available5Lists.map(l => `
+    printListsContainer.innerHTML = availableLists.map(l => `
       <label class="checkbox-item">
         <input type="checkbox" class="cb-print-list" value="${l}" ${selectedPrintLists.has(l) ? 'checked' : ''}>
         <span>${l}</span>
@@ -1099,7 +1103,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Group tasks by Main List -> Sublist
     const grouped = {};
-    available5Lists.forEach(listTitle => {
+    availableLists.forEach(listTitle => {
       if (selectedPrintLists.has(listTitle)) {
         grouped[listTitle] = {};
       }
@@ -1207,7 +1211,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnPrintSelectAllLists) {
     btnPrintSelectAllLists.addEventListener('click', () => {
-      available5Lists.forEach(l => selectedPrintLists.add(l));
+      availableLists.forEach(l => selectedPrintLists.add(l));
       printListsContainer.querySelectorAll('.cb-print-list').forEach(cb => cb.checked = true);
       renderSchematicPreview();
     });
