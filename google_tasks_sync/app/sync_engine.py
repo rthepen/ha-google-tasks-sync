@@ -419,8 +419,60 @@ class SyncEngine:
         self.log(f"Nieuwe taak '{title}' aangemaakt in '{list_title}' (sub: {clean_sub_name or 'Geen'})", level="success")
         return {"success": True, "task_id": new_task_id, "action": "created"}
 
+    def renumber_list_tasks(self, account_id: str, list_id: str, list_title: str) -> None:
+        """Her-nummert alle taken binnen een lijst netjes van 01 t/m N (en behoudt sublijst prefix indien aanwezig)."""
+        import re
+        try:
+            raw_tasks = self.client.list_tasks(account_id, list_id)
+            active_tasks = [t for t in raw_tasks if not t.get("deleted") and not t.get("title", "").startswith("📂 ")]
+            
+            # Sorteer taken op basis van hun huidige nummer of positie
+            def task_sort_key(t):
+                tit = t.get("title", "")
+                m = re.search(r"(\d+)", tit)
+                return int(m.group(1)) if m else 999
+            
+            active_tasks.sort(key=task_sort_key)
+            
+            # Sub-grouping by sub-prefix (bijv. "04. Eigen Studio -") of algemene lijstnummering
+            subgroup_counters = {}
+            global_counter = 1
+
+            for t in active_tasks:
+                old_title = t.get("title", "").strip()
+                t_id = t.get("id")
+                if not old_title or not t_id:
+                    continue
+
+                new_title = old_title
+                sub_match = re.match(r"^(\d+\.\s*.*?-\s*)\d*\.?\s*(.*)$", old_title)
+                if sub_match:
+                    prefix = sub_match.group(1)
+                    core_name = sub_match.group(2).strip()
+                    subgroup_counters[prefix] = subgroup_counters.get(prefix, 0) + 1
+                    num_str = f"{subgroup_counters[prefix]:02d}"
+                    new_title = f"{prefix}{num_str}. {core_name}"
+                else:
+                    main_match = re.match(r"^\d+\.\s*(.*)$", old_title)
+                    core_name = main_match.group(1).strip() if main_match else old_title
+                    num_str = f"{global_counter:02d}"
+                    new_title = f"{num_str}. {core_name}"
+                    global_counter += 1
+
+                if new_title != old_title:
+                    self.client.update_task(account_id, list_id, t_id, {
+                        "title": new_title,
+                        "notes": t.get("notes", ""),
+                        "status": t.get("status", "needsAction")
+                    })
+                    self.log(f"Nummering gecorrigeerd in '{list_title}': '{old_title}' ➔ '{new_title}'")
+                    time.sleep(0.03)
+
+        except Exception as e:
+            self.log(f"Fout bij hernummeren van '{list_title}': {str(e)}", level="error")
+
     def reassign_tasks_batch(self, moves: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Verplaatst taken naar een andere lijst (doel-lijst) en voorkomt duplicaten."""
+        """Verplaatst taken naar een andere lijst (doel-lijst), voorkomt duplicaten en maakt nummering sluitend."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts")
@@ -428,6 +480,10 @@ class SyncEngine:
         target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
         tasklists = self.client.list_tasklists(target_account)
         lists_by_title = {l["title"]: l["id"] for l in tasklists}
+        lists_by_id = {l["id"]: l["title"] for l in tasklists}
+
+        # Track all affected lists (both source and target) to renumber them at the end
+        affected_lists = set()
 
         # Cache existing tasks in target lists to avoid duplicate creates
         target_tasks_cache = {}
@@ -456,8 +512,12 @@ class SyncEngine:
                 if new_l:
                     target_list_id = new_l["id"]
                     lists_by_title[target_title] = target_list_id
+                    lists_by_id[target_list_id] = target_title
 
             if target_list_id and cur_list_id != target_list_id:
+                affected_lists.add((cur_list_id, lists_by_id.get(cur_list_id, "Bronlijst")))
+                affected_lists.add((target_list_id, target_title))
+
                 existing_in_target = get_existing_in_list(target_list_id)
 
                 if t_title in existing_in_target:
@@ -487,11 +547,16 @@ class SyncEngine:
                 success_count += 1
                 time.sleep(0.04)
 
-        self.log(f"Batch herindeling voltooid: {success_count} taken verplaatst.", level="success")
+        # Automatic Renumbering of all affected lists
+        for l_id, l_title in affected_lists:
+            if l_id:
+                self.renumber_list_tasks(target_account, l_id, l_title)
+
+        self.log(f"Batch herindeling voltooid: {success_count} taken verplaatst en nummering gecorrigeerd.", level="success")
         return {"success": True, "moved_count": success_count}
 
     def apply_captain_division(self, roy_tasks: List[Dict[str, Any]], karen_tasks: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Past de verdeling toe: verplaatst/zet taken in 03. Kapitein Roy en 04. Kapitein Karen met duplicaat-check."""
+        """Past de verdeling toe: verplaatst/zet taken in 03. Kapitein Roy en 04. Kapitein Karen met duplicaat-check en hernummering."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts")
@@ -550,5 +615,11 @@ class SyncEngine:
         # 2. Update Karen's tasks
         sync_tasks_to_target_list(karen_list_id, karen_tasks, "04. Kapitein Karen")
 
-        self.log("Kapiteinsverdeling succesvol gesynchroniseerd met Google Tasks!", level="success")
+        # 3. Renumber both captain lists to guarantee 01..N sequential numbering
+        if roy_list_id:
+            self.renumber_list_tasks(target_account, roy_list_id, "03. Kapitein Roy")
+        if karen_list_id:
+            self.renumber_list_tasks(target_account, karen_list_id, "04. Kapitein Karen")
+
+        self.log("Kapiteinsverdeling succesvol gesynchroniseerd en genummerd!", level="success")
         return {"success": True, "roy_count": len(roy_tasks), "karen_count": len(karen_tasks)}

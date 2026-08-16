@@ -172,6 +172,20 @@ async def reassign_tasks(payload: BatchReassignPayload):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/tasks/renumber-all")
+async def renumber_all_tasks():
+    try:
+        accounts = client.get_accounts()
+        if not accounts:
+            raise HTTPException(status_code=400, detail="Geen accounts")
+        target_account = list(accounts.keys())[0]
+        tasklists = client.list_tasklists(target_account)
+        for cl in tasklists:
+            sync_engine.renumber_list_tasks(target_account, cl["id"], cl["title"])
+        return {"success": True, "message": "Alle lijsten succesvol hernummerd!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 class ApplyDivisionPayload(BaseModel):
     roy_tasks: List[Dict[str, Any]]
     karen_tasks: List[Dict[str, Any]]
