@@ -650,16 +650,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Navigation handlers
-  document.getElementById('btn-step-1-next').addEventListener('click', () => {
-    setWizardStep(2);
-    initPointsStep(2, 'karen');
-  });
+  const btnStep1Next = document.getElementById('btn-step-1-next');
+  if (btnStep1Next) {
+    btnStep1Next.addEventListener('click', () => {
+      setWizardStep(2);
+      initPointsStep(2, 'karen');
+    });
+  }
 
-  document.getElementById('btn-step-2-prev').addEventListener('click', () => setWizardStep(1));
-  document.getElementById('btn-step-2-next').addEventListener('click', () => {
-    calculateAverages();
-    setWizardStep(3);
-  });
+  const btnStep2Prev = document.getElementById('btn-step-2-prev');
+  if (btnStep2Prev) {
+    btnStep2Prev.addEventListener('click', () => setWizardStep(1));
+  }
+
+  const btnStep2Next = document.getElementById('btn-step-2-next');
+  if (btnStep2Next) {
+    btnStep2Next.addEventListener('click', () => {
+      calculateAverages();
+      setWizardStep(3);
+    });
+  }
 
   // --- STAP 3: Calculate & Render Averages ---
   function calculateAverages() {
@@ -682,26 +692,37 @@ document.addEventListener('DOMContentLoaded', () => {
     averageScores.sort((a, b) => b.avgPts - a.avgPts);
 
     const tbody = document.getElementById('step-3-averages-tbody');
-    tbody.innerHTML = averageScores.map(item => `
-      <tr>
-        <td><strong>${item.title}</strong><br><small style="color:var(--text-muted)"><span class="tag" style="font-size:10px; padding:1px 5px;">${item.current_list_title}</span> ${item.notes || ''}</small></td>
-        <td style="color:var(--roy-color); font-weight:700;">${item.royPts} pt</td>
-        <td style="color:var(--karen-color); font-weight:700;">${item.karenPts} pt</td>
-        <td><span class="tag" style="font-size:12px; font-weight:700;">⭐ ${item.avgPts} pt</span></td>
-      </tr>
-    `).join('');
+    if (tbody) {
+      tbody.innerHTML = averageScores.map(item => `
+        <tr>
+          <td><strong>${item.title}</strong><br><small style="color:var(--text-muted)"><span class="tag" style="font-size:10px; padding:1px 5px;">${item.current_list_title}</span> ${item.notes || ''}</small></td>
+          <td style="color:var(--roy-color); font-weight:700;">${item.royPts} pt</td>
+          <td style="color:var(--karen-color); font-weight:700;">${item.karenPts} pt</td>
+          <td><span class="tag" style="font-size:12px; font-weight:700;">⭐ ${item.avgPts} pt</span></td>
+        </tr>
+      `).join('');
+    }
   }
 
-  document.getElementById('btn-step-3-prev').addEventListener('click', () => setWizardStep(2));
-  document.getElementById('btn-step-3-next').addEventListener('click', () => {
-    setWizardStep(4);
-    initStep4Draft();
-  });
+  const btnStep3Prev = document.getElementById('btn-step-3-prev');
+  if (btnStep3Prev) {
+    btnStep3Prev.addEventListener('click', () => setWizardStep(2));
+  }
+
+  const btnStep3Next = document.getElementById('btn-step-3-next');
+  if (btnStep3Next) {
+    btnStep3Next.addEventListener('click', () => {
+      setWizardStep(4);
+      initStep4Draft();
+    });
+  }
 
   // --- STAP 4: Draft / Keuzerondes ---
   function initStep4Draft() {
-    document.getElementById('starter-choice-box').style.display = 'flex';
-    document.getElementById('draft-arena').style.display = 'none';
+    const choiceBox = document.getElementById('starter-choice-box');
+    const arena = document.getElementById('draft-arena');
+    if (choiceBox) choiceBox.style.display = 'flex';
+    if (arena) arena.style.display = 'none';
 
     availablePool = [...averageScores];
     royChosenTasks = [];
@@ -712,13 +733,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function startDraft(starter) {
     currentTurn = starter;
-    document.getElementById('starter-choice-box').style.display = 'none';
-    document.getElementById('draft-arena').style.display = 'block';
+    const choiceBox = document.getElementById('starter-choice-box');
+    const arena = document.getElementById('draft-arena');
+    if (choiceBox) choiceBox.style.display = 'none';
+    if (arena) arena.style.display = 'block';
     renderDraftArena();
   }
 
-  document.getElementById('btn-start-roy').addEventListener('click', () => startDraft('roy'));
-  document.getElementById('btn-start-karen').addEventListener('click', () => startDraft('karen'));
+  const btnStartRoy = document.getElementById('btn-start-roy');
+  const btnStartKaren = document.getElementById('btn-start-karen');
+  if (btnStartRoy) btnStartRoy.addEventListener('click', () => startDraft('roy'));
+  if (btnStartKaren) btnStartKaren.addEventListener('click', () => startDraft('karen'));
 
   function pickTask(item) {
     if (currentTurn === 'roy') {
@@ -733,14 +758,11 @@ document.addEventListener('DOMContentLoaded', () => {
     availablePool = availablePool.filter(i => i.title !== item.title);
 
     // Beurtwissel logica volgens regels:
-    // Wie aan de beurt is blijft kiezen zolang diegene MINDER punten heeft dan de ander.
-    // Zodra diegene meer of gelijk heeft, wisselt de beurt naar de speler met de minste punten!
     if (royTotalScore < karenTotalScore) {
       currentTurn = 'roy';
     } else if (karenTotalScore < royTotalScore) {
       currentTurn = 'karen';
     } else {
-      // Gelijk aantal punten: wissel van beurt
       currentTurn = (currentTurn === 'roy') ? 'karen' : 'roy';
     }
 
@@ -750,140 +772,186 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderDraftArena() {
     const isKaren = (currentTurn === 'karen');
     const banner = document.getElementById('turn-banner');
-    banner.className = `turn-banner ${isKaren ? 'karen-turn' : ''}`;
+    if (banner) banner.className = `turn-banner ${isKaren ? 'karen-turn' : ''}`;
     
-    document.getElementById('turn-text').textContent = isKaren ? 'Karen mag kiezen' : 'Roy mag kiezen';
-    document.getElementById('turn-subtext').textContent = isKaren 
-      ? `Karen heeft ${karenTotalScore.toFixed(1)} pt vs Roy ${royTotalScore.toFixed(1)} pt.`
-      : `Roy heeft ${royTotalScore.toFixed(1)} pt vs Karen ${karenTotalScore.toFixed(1)} pt.`;
+    const turnText = document.getElementById('turn-text');
+    if (turnText) turnText.textContent = isKaren ? 'Karen mag kiezen' : 'Roy mag kiezen';
+
+    const turnSubtext = document.getElementById('turn-subtext');
+    if (turnSubtext) {
+      turnSubtext.textContent = isKaren 
+        ? `Karen heeft ${karenTotalScore.toFixed(1)} pt vs Roy ${royTotalScore.toFixed(1)} pt.`
+        : `Roy heeft ${royTotalScore.toFixed(1)} pt vs Karen ${karenTotalScore.toFixed(1)} pt.`;
+    }
 
     // Scores & Balance
-    document.getElementById('roy-current-pts').textContent = `${royTotalScore.toFixed(1)} pt`;
-    document.getElementById('roy-tasks-count').textContent = `${royChosenTasks.length} taken`;
+    const royCurrentPts = document.getElementById('roy-current-pts');
+    if (royCurrentPts) royCurrentPts.textContent = `${royTotalScore.toFixed(1)} pt`;
+    
+    const royTasksCount = document.getElementById('roy-tasks-count');
+    if (royTasksCount) royTasksCount.textContent = `${royChosenTasks.length} taken`;
 
-    document.getElementById('karen-current-pts').textContent = `${karenTotalScore.toFixed(1)} pt`;
-    document.getElementById('karen-tasks-count').textContent = `${karenChosenTasks.length} taken`;
+    const karenCurrentPts = document.getElementById('karen-current-pts');
+    if (karenCurrentPts) karenCurrentPts.textContent = `${karenTotalScore.toFixed(1)} pt`;
+
+    const karenTasksCount = document.getElementById('karen-tasks-count');
+    if (karenTasksCount) karenTasksCount.textContent = `${karenChosenTasks.length} taken`;
 
     const totalAssigned = (royTotalScore + karenTotalScore) || 1;
     const royPct = Math.round((royTotalScore / totalAssigned) * 100);
     const karenPct = 100 - royPct;
 
-    document.getElementById('balance-fill-roy').style.width = `${royPct}%`;
-    document.getElementById('balance-fill-karen').style.width = `${karenPct}%`;
+    const balanceFillRoy = document.getElementById('balance-fill-roy');
+    if (balanceFillRoy) balanceFillRoy.style.width = `${royPct}%`;
+
+    const balanceFillKaren = document.getElementById('balance-fill-karen');
+    if (balanceFillKaren) balanceFillKaren.style.width = `${karenPct}%`;
 
     // Available Tasks
-    document.getElementById('available-tasks-count').textContent = availablePool.length;
-    const availableList = document.getElementById('available-tasks-list');
-    
-    if (availablePool.length === 0) {
-      availableList.innerHTML = '<div class="status-msg success">🎉 Alle taken zijn verdeeld!</div>';
-      document.getElementById('btn-step-4-finish').style.display = 'inline-flex';
-    } else {
-      document.getElementById('btn-step-4-finish').style.display = 'none';
-      availableList.innerHTML = availablePool.map(item => `
-        <div class="draft-pick-item" data-title="${item.title}">
-          <div>
-            <strong>${item.title}</strong>
-            <div style="font-size:11px; color:var(--text-muted)"><span class="tag" style="font-size:9px; padding:1px 4px;">${item.current_list_title}</span> ${item.notes || ''}</div>
-          </div>
-          <span class="draft-pick-pts">${item.avgPts} pt</span>
-        </div>
-      `).join('');
+    const availCount = document.getElementById('available-tasks-count');
+    if (availCount) availCount.textContent = availablePool.length;
 
-      availableList.querySelectorAll('.draft-pick-item').forEach(el => {
-        el.addEventListener('click', () => {
-          const item = availablePool.find(i => i.title === el.dataset.title);
-          if (item) pickTask(item);
+    const availableList = document.getElementById('available-tasks-list');
+    const btnFinish = document.getElementById('btn-step-4-finish');
+    
+    if (availableList) {
+      if (availablePool.length === 0) {
+        availableList.innerHTML = '<div class="status-msg success">🎉 Alle taken zijn verdeeld!</div>';
+        if (btnFinish) btnFinish.style.display = 'inline-flex';
+      } else {
+        if (btnFinish) btnFinish.style.display = 'none';
+        availableList.innerHTML = availablePool.map(item => `
+          <div class="draft-pick-item" data-title="${item.title}">
+            <div>
+              <strong>${item.title}</strong>
+              <div style="font-size:11px; color:var(--text-muted)"><span class="tag" style="font-size:9px; padding:1px 4px;">${item.current_list_title}</span> ${item.notes || ''}</div>
+            </div>
+            <span class="draft-pick-pts">${item.avgPts} pt</span>
+          </div>
+        `).join('');
+
+        availableList.querySelectorAll('.draft-pick-item').forEach(el => {
+          el.addEventListener('click', () => {
+            const item = availablePool.find(i => i.title === el.dataset.title);
+            if (item) pickTask(item);
+          });
         });
-      });
+      }
     }
 
     // Chosen Tasks
-    document.getElementById('roy-chosen-list').innerHTML = royChosenTasks.map(i => `
-      <div class="chosen-item">
-        <span>${i.title}</span>
-        <strong style="color:var(--roy-color)">${i.avgPts} pt</strong>
-      </div>
-    `).join('');
+    const royChosenList = document.getElementById('roy-chosen-list');
+    if (royChosenList) {
+      royChosenList.innerHTML = royChosenTasks.map(i => `
+        <div class="chosen-item">
+          <span>${i.title}</span>
+          <strong style="color:var(--roy-color)">${i.avgPts} pt</strong>
+        </div>
+      `).join('');
+    }
 
-    document.getElementById('karen-chosen-list').innerHTML = karenChosenTasks.map(i => `
-      <div class="chosen-item">
-        <span>${i.title}</span>
-        <strong style="color:var(--karen-color)">${i.avgPts} pt</strong>
-      </div>
-    `).join('');
+    const karenChosenList = document.getElementById('karen-chosen-list');
+    if (karenChosenList) {
+      karenChosenList.innerHTML = karenChosenTasks.map(i => `
+        <div class="chosen-item">
+          <span>${i.title}</span>
+          <strong style="color:var(--karen-color)">${i.avgPts} pt</strong>
+        </div>
+      `).join('');
+    }
   }
 
-  document.getElementById('btn-step-4-prev').addEventListener('click', () => setWizardStep(3));
-  document.getElementById('btn-step-4-finish').addEventListener('click', () => {
-    setWizardStep(5);
-    renderStep5Finale();
-  });
+  const btnStep4Prev = document.getElementById('btn-step-4-prev');
+  if (btnStep4Prev) {
+    btnStep4Prev.addEventListener('click', () => setWizardStep(3));
+  }
+
+  const btnStep4Finish = document.getElementById('btn-step-4-finish');
+  if (btnStep4Finish) {
+    btnStep4Finish.addEventListener('click', () => {
+      setWizardStep(5);
+      renderStep5Finale();
+    });
+  }
 
   // --- STAP 5: Finale Summary & Google Tasks Apply ---
   function renderStep5Finale() {
-    document.getElementById('final-roy-stats').textContent = `${royChosenTasks.length} taken | ${royTotalScore.toFixed(1)} pt`;
-    document.getElementById('final-karen-stats').textContent = `${karenChosenTasks.length} taken | ${karenTotalScore.toFixed(1)} pt`;
+    const royStats = document.getElementById('final-roy-stats');
+    if (royStats) royStats.textContent = `${royChosenTasks.length} taken | ${royTotalScore.toFixed(1)} pt`;
 
-    document.getElementById('final-roy-list').innerHTML = royChosenTasks.map(i => `
-      <li>
-        <span>${i.title}</span>
-        <strong style="color:var(--roy-color)">${i.avgPts} pt</strong>
-      </li>
-    `).join('');
+    const karenStats = document.getElementById('final-karen-stats');
+    if (karenStats) karenStats.textContent = `${karenChosenTasks.length} taken | ${karenTotalScore.toFixed(1)} pt`;
 
-    document.getElementById('final-karen-list').innerHTML = karenChosenTasks.map(i => `
-      <li>
-        <span>${i.title}</span>
-        <strong style="color:var(--karen-color)">${i.avgPts} pt</strong>
-      </li>
-    `).join('');
+    const royList = document.getElementById('final-roy-list');
+    if (royList) {
+      royList.innerHTML = royChosenTasks.map(i => `
+        <li>
+          <span>${i.title}</span>
+          <strong style="color:var(--roy-color)">${i.avgPts} pt</strong>
+        </li>
+      `).join('');
+    }
+
+    const karenList = document.getElementById('final-karen-list');
+    if (karenList) {
+      karenList.innerHTML = karenChosenTasks.map(i => `
+        <li>
+          <span>${i.title}</span>
+          <strong style="color:var(--karen-color)">${i.avgPts} pt</strong>
+        </li>
+      `).join('');
+    }
   }
 
-  document.getElementById('btn-step-5-prev-final').addEventListener('click', () => setWizardStep(4));
+  const btnStep5Prev = document.getElementById('btn-step-5-prev-final');
+  if (btnStep5Prev) {
+    btnStep5Prev.addEventListener('click', () => setWizardStep(4));
+  }
 
-  document.getElementById('btn-apply-division-google').addEventListener('click', async () => {
-    const btn = document.getElementById('btn-apply-division-google');
-    btn.disabled = true;
-    btn.textContent = 'Bezig met synchroniseren naar Google Tasks...';
-    showToast('Bezig met toepassen op Google Tasks...');
+  const btnApplyDivision = document.getElementById('btn-apply-division-google');
+  if (btnApplyDivision) {
+    btnApplyDivision.addEventListener('click', async () => {
+      btnApplyDivision.disabled = true;
+      btnApplyDivision.textContent = 'Bezig met synchroniseren naar Google Tasks...';
+      showToast('Bezig met toepassen op Google Tasks...');
 
-    try {
-      const royPayload = royChosenTasks.map(i => ({
-        title: i.title,
-        notes: i.notes,
-        points: i.avgPts
-      }));
-      const karenPayload = karenChosenTasks.map(i => ({
-        title: i.title,
-        notes: i.notes,
-        points: i.avgPts
-      }));
+      try {
+        const royPayload = royChosenTasks.map(i => ({
+          title: i.title,
+          notes: i.notes,
+          points: i.avgPts
+        }));
+        const karenPayload = karenChosenTasks.map(i => ({
+          title: i.title,
+          notes: i.notes,
+          points: i.avgPts
+        }));
 
-      const res = await fetch(`${rootPath}/api/divider/apply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roy_tasks: royPayload,
-          karen_tasks: karenPayload
-        })
-      });
+        const res = await fetch(`${rootPath}/api/divider/apply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roy_tasks: royPayload,
+            karen_tasks: karenPayload
+          })
+        });
 
-      const data = await res.json();
-      if (data.success) {
-        showToast('Kapiteinstaken succesvol verdeeld en gesynchroniseerd met Google Tasks! 🎉');
-        btn.textContent = '✓ Gesynchroniseerd met Google Tasks!';
-        btn.style.background = '#238636';
-        loadJsonExport();
-      } else {
-        throw new Error(data.error || 'Onbekende fout');
+        const data = await res.json();
+        if (data.success) {
+          showToast('Kapiteinstaken succesvol verdeeld en gesynchroniseerd met Google Tasks! 🎉');
+          btnApplyDivision.textContent = '✓ Gesynchroniseerd met Google Tasks!';
+          btnApplyDivision.style.background = '#238636';
+          loadJsonExport();
+        } else {
+          throw new Error(data.error || 'Onbekende fout');
+        }
+      } catch (e) {
+        showToast('Fout bij synchroniseren: ' + e.message, true);
+        btnApplyDivision.disabled = false;
+        btnApplyDivision.textContent = 'Toepassen & Syncen naar Google Tasks! 🚀';
       }
-    } catch (e) {
-      showToast('Fout bij synchroniseren: ' + e.message, true);
-      btn.disabled = false;
-      btn.textContent = 'Toepassen & Syncen naar Google Tasks! 🚀';
-    }
-  });
+    });
+  }
 
   // =========================================================================
   // 3. SCHEMATISCH AFDRUKKEN OVERZICHT (PRINT MODAL & SCHEMATIC VIEW)
