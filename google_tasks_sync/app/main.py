@@ -135,7 +135,7 @@ async def get_all_tasks():
 @app.get("/api/divider/tasks")
 async def get_divider_tasks():
     try:
-        tasks = sync_engine.get_all_tasks()
+        tasks = sync_engine.get_captain_fixed_tasks()
         return {"tasks": tasks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -451,16 +451,16 @@ document.addEventListener('DOMContentLoaded', () => {
   btnSyncNow.addEventListener('click', applyJsonToGoogle);
 
   // Initial loads
+  loadManagerTasks();
   loadJsonExport();
   loadLogsAndStatus();
   setInterval(loadLogsAndStatus, 10000);
 
   // =========================================================================
-  // 2. KAPITEIN VERDELER WIZARD LOGIC (STAPPEN 1 T/M 6)
+  // 2. KAPITEIN VERDELER WIZARD LOGIC (STAPPEN 1 T/M 5)
   // =========================================================================
   let wizardInitialized = false;
   let allCaptainTasks = [];
-  let selectedTasks = [];
   let royPoints = {};
   let karenPoints = {};
   let averageScores = []; // [{ task, royPts, karenPts, avgPts }]
@@ -474,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTurn = 'roy'; // 'roy' of 'karen'
 
   function setWizardStep(stepNum) {
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= 5; i++) {
       const stepEl = document.getElementById(`step-${i}-content`);
       if (stepEl) stepEl.style.display = (i === stepNum) ? 'flex' : 'none';
       
@@ -488,168 +488,62 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function initDividerWizard() {
-    if (wizardInitialized) return;
-    wizardInitialized = true;
     setWizardStep(1);
 
-    const container = document.getElementById('step-1-tasks-list');
-    container.innerHTML = '<div class="loading-spinner">Kapiteinstaken ophalen uit Google Tasks...</div>';
+    const grid = document.getElementById('step-1-points-grid');
+    grid.innerHTML = '<div class="loading-spinner">Kapiteinstaken ophalen uit 03. Kapitein Roy & 04. Kapitein Karen...</div>';
 
     try {
       const res = await fetch(`${rootPath}/api/divider/tasks`);
       if (!res.ok) throw new Error('Kon kapiteinstaken niet ophalen');
       const data = await res.json();
       allCaptainTasks = data.tasks || [];
-      setupStep1Filters();
-      renderStep1Tasks();
+      
+      if (!allCaptainTasks.length) {
+        grid.innerHTML = '<div class="status-msg">Geen taken gevonden in Kapitein Roy & Kapitein Karen.</div>';
+        return;
+      }
+
+      initPointsStep(1, 'roy');
     } catch (e) {
-      container.innerHTML = `<div class="status-msg error">Fout: ${e.message}</div>`;
+      grid.innerHTML = `<div class="status-msg error">Fout: ${e.message}</div>`;
     }
   }
 
-  // --- STAP 1: Select Tasks with List Filter Tabs ---
-  let currentListFilter = 'all';
-
-  function setupStep1Filters() {
-    const filtersContainer = document.getElementById('step-1-filters');
-    if (!filtersContainer) return;
-
-    // Update count badges
-    const countAll = allCaptainTasks.length;
-    const count13 = allCaptainTasks.filter(t => t.current_list_title.includes('13')).length;
-    const count11 = allCaptainTasks.filter(t => t.current_list_title.includes('11')).length;
-    const count12 = allCaptainTasks.filter(t => t.current_list_title.includes('12')).length;
-    const count09 = allCaptainTasks.filter(t => t.current_list_title.includes('09')).length;
-    const count10 = allCaptainTasks.filter(t => t.current_list_title.includes('10')).length;
-
-    document.getElementById('count-filter-all').textContent = countAll;
-    document.getElementById('count-filter-13').textContent = count13;
-    document.getElementById('count-filter-11').textContent = count11;
-    document.getElementById('count-filter-12').textContent = count12;
-    document.getElementById('count-filter-09').textContent = count09;
-    document.getElementById('count-filter-10').textContent = count10;
-
-    filtersContainer.querySelectorAll('.filter-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        filtersContainer.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentListFilter = btn.dataset.filter;
-        renderStep1Tasks();
-      });
-    });
-  }
-
-  function renderStep1Tasks() {
-    const container = document.getElementById('step-1-tasks-list');
-    if (!allCaptainTasks.length) {
-      container.innerHTML = '<div class="status-msg">Geen kapiteinstaken gevonden in de lijsten.</div>';
-      return;
-    }
-
-    const filteredTasks = (currentListFilter === 'all')
-      ? allCaptainTasks
-      : allCaptainTasks.filter(t => t.current_list_title.includes(currentListFilter.split('.')[0]));
-
-    if (filteredTasks.length === 0) {
-      container.innerHTML = '<div class="status-msg">Geen taken in deze lijst.</div>';
-      return;
-    }
-
-    container.innerHTML = filteredTasks.map((t) => {
-      const isSelected = selectedTasks.some(st => st.title === t.title);
-      return `
-        <div class="task-select-item ${isSelected ? 'selected' : ''}" data-title="${t.title}">
-          <input type="checkbox" ${isSelected ? 'checked' : ''}>
-          <div class="task-select-item-info">
-            <div class="task-select-item-title">${t.title}</div>
-            <div class="task-select-item-notes"><span class="tag" style="font-size:10px; padding:1px 5px;">${t.current_list_title}</span> ${t.notes ? '• ' + t.notes : ''}</div>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    // Checkbox click handlers
-    container.querySelectorAll('.task-select-item').forEach(el => {
-      el.addEventListener('click', (e) => {
-        const title = el.dataset.title;
-        const chk = el.querySelector('input[type="checkbox"]');
-        if (e.target !== chk) chk.checked = !chk.checked;
-        
-        const task = allCaptainTasks.find(t => t.title === title);
-        if (chk.checked) {
-          el.classList.add('selected');
-          if (!selectedTasks.some(st => st.title === task.title)) selectedTasks.push(task);
-        } else {
-          el.classList.remove('selected');
-          selectedTasks = selectedTasks.filter(st => st.title !== task.title);
-        }
-        updateStep1Count();
-      });
-    });
-
-    updateStep1Count();
-  }
-
-  function updateStep1Count() {
-    document.getElementById('selected-tasks-count').textContent = `${selectedTasks.length} taken geselecteerd`;
-  }
-
-  document.getElementById('btn-select-all-tasks').addEventListener('click', () => {
-    const filteredTasks = (currentListFilter === 'all')
-      ? allCaptainTasks
-      : allCaptainTasks.filter(t => t.current_list_title.includes(currentListFilter.split('.')[0]));
-
-    filteredTasks.forEach(t => {
-      if (!selectedTasks.some(st => st.title === t.title)) selectedTasks.push(t);
-    });
-    renderStep1Tasks();
-  });
-
-  document.getElementById('btn-deselect-all-tasks').addEventListener('click', () => {
-    const filteredTasks = (currentListFilter === 'all')
-      ? allCaptainTasks
-      : allCaptainTasks.filter(t => t.current_list_title.includes(currentListFilter.split('.')[0]));
-
-    const filteredTitles = new Set(filteredTasks.map(t => t.title));
-    selectedTasks = selectedTasks.filter(t => !filteredTitles.has(t.title));
-    renderStep1Tasks();
-  });
-
-  document.getElementById('btn-step-1-next').addEventListener('click', () => {
-    if (selectedTasks.length < 2) {
-      showToast('Selecteer minimaal 2 taken om te verdelen!', true);
-      return;
-    }
-    setWizardStep(2);
-    initPointsStep(2, 'roy');
-  });
-
-  // --- STAP 2 & 3: Points Allocation (1000pt) ---
+  // --- STAP 1 & 2: Points Allocation (1000pt) ---
   function initPointsStep(stepNum, player) {
     const grid = document.getElementById(`step-${stepNum}-points-grid`);
-    const initialPts = Math.floor(1000 / selectedTasks.length);
-    const remainder = 1000 - (initialPts * selectedTasks.length);
+    const count = allCaptainTasks.length || 1;
+    const initialPts = Math.floor(1000 / count);
+    const remainder = 1000 - (initialPts * count);
 
     const pointsObj = (player === 'roy') ? royPoints : karenPoints;
 
-    // Reset or set default points if empty
-    selectedTasks.forEach((t, i) => {
+    // Set default points if empty
+    allCaptainTasks.forEach((t, i) => {
       if (pointsObj[t.title] === undefined) {
         pointsObj[t.title] = initialPts + (i === 0 ? remainder : 0);
       }
     });
 
     function renderPointsGrid() {
-      grid.innerHTML = selectedTasks.map((t, idx) => `
+      grid.innerHTML = allCaptainTasks.map((t) => `
         <div class="point-task-row">
           <div class="point-task-info">
             <div class="point-task-title">${t.title}</div>
-            <div class="point-task-notes">${t.notes || ''}</div>
+            <div class="point-task-notes">
+              <span class="tag" style="font-size:10px; padding:1px 5px;">${t.current_list_title}</span>
+              ${t.notes ? '• ' + t.notes : ''}
+            </div>
           </div>
           <div class="point-controls">
-            <button class="btn btn-sm btn-outline btn-pt-minus" data-title="${t.title}">-5</button>
+            <button class="btn btn-sm btn-outline btn-pt-change" data-delta="-20" data-title="${t.title}" title="-20 punten">-20</button>
+            <button class="btn btn-sm btn-outline btn-pt-change" data-delta="-5" data-title="${t.title}" title="-5 punten">-5</button>
+            <button class="btn btn-sm btn-outline btn-pt-change" data-delta="-1" data-title="${t.title}" title="-1 punt">-1</button>
             <input type="number" class="point-input" data-title="${t.title}" value="${pointsObj[t.title] || 0}" min="0" max="1000">
-            <button class="btn btn-sm btn-outline btn-pt-plus" data-title="${t.title}">+5</button>
+            <button class="btn btn-sm btn-outline btn-pt-change" data-delta="1" data-title="${t.title}" title="+1 punt">+1</button>
+            <button class="btn btn-sm btn-outline btn-pt-change" data-delta="5" data-title="${t.title}" title="+5 punten">+5</button>
+            <button class="btn btn-sm btn-outline btn-pt-change" data-delta="20" data-title="${t.title}" title="+20 punten">+20</button>
           </div>
         </div>
       `).join('');
@@ -663,18 +557,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
 
-      grid.querySelectorAll('.btn-pt-plus').forEach(btn => {
+      // Point delta buttons (+1, -1, +5, -5, +20, -20)
+      grid.querySelectorAll('.btn-pt-change').forEach(btn => {
         btn.addEventListener('click', () => {
           const t = btn.dataset.title;
-          pointsObj[t] = (pointsObj[t] || 0) + 5;
-          renderPointsGrid();
-        });
-      });
-
-      grid.querySelectorAll('.btn-pt-minus').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const t = btn.dataset.title;
-          pointsObj[t] = Math.max(0, (pointsObj[t] || 0) - 5);
+          const delta = parseInt(btn.dataset.delta) || 0;
+          pointsObj[t] = Math.max(0, (pointsObj[t] || 0) + delta);
           renderPointsGrid();
         });
       });
@@ -693,31 +581,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const textEl = document.getElementById(`${player}-budget-text`);
     const fillEl = document.getElementById(`${player}-budget-progress`);
 
-    textEl.textContent = `${totalAssigned} / 1000 punten verdeeld (${remaining >= 0 ? remaining + ' over' : Math.abs(remaining) + ' te veel!'})`;
-    
-    const pct = Math.min(100, Math.max(0, (totalAssigned / 1000) * 100));
-    fillEl.style.width = `${pct}%`;
+    if (textEl && fillEl) {
+      textEl.textContent = `${totalAssigned} / 1000 punten verdeeld (${remaining >= 0 ? remaining + ' over' : Math.abs(remaining) + ' te veel!'})`;
+      
+      const pct = Math.min(100, Math.max(0, (totalAssigned / 1000) * 100));
+      fillEl.style.width = `${pct}%`;
 
-    fillEl.className = 'progress-bar-fill';
-    if (totalAssigned > 1000) fillEl.classList.add('danger');
-    else if (totalAssigned === 1000) fillEl.style.background = '#3fb950';
+      fillEl.className = 'progress-bar-fill';
+      if (totalAssigned > 1000) fillEl.classList.add('danger');
+      else if (totalAssigned === 1000) fillEl.style.background = '#3fb950';
+    }
   }
+
+  // Navigation handlers
+  document.getElementById('btn-step-1-next').addEventListener('click', () => {
+    setWizardStep(2);
+    initPointsStep(2, 'karen');
+  });
 
   document.getElementById('btn-step-2-prev').addEventListener('click', () => setWizardStep(1));
   document.getElementById('btn-step-2-next').addEventListener('click', () => {
-    setWizardStep(3);
-    initPointsStep(3, 'karen');
-  });
-
-  document.getElementById('btn-step-3-prev').addEventListener('click', () => setWizardStep(2));
-  document.getElementById('btn-step-3-next').addEventListener('click', () => {
     calculateAverages();
-    setWizardStep(4);
+    setWizardStep(3);
   });
 
-  // --- STAP 4: Calculate & Render Averages ---
+  // --- STAP 3: Calculate & Render Averages ---
   function calculateAverages() {
-    averageScores = selectedTasks.map(t => {
+    averageScores = allCaptainTasks.map(t => {
       const r = parseInt(royPoints[t.title]) || 0;
       const k = parseInt(karenPoints[t.title]) || 0;
       const avg = Math.round(((r + k) / 2) * 10) / 10;
@@ -725,6 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
         task: t,
         title: t.title,
         notes: t.notes,
+        current_list_title: t.current_list_title,
         royPts: r,
         karenPts: k,
         avgPts: avg
@@ -734,10 +625,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sort descending by average points (zwaarste taken bovenaan)
     averageScores.sort((a, b) => b.avgPts - a.avgPts);
 
-    const tbody = document.getElementById('step-4-averages-tbody');
+    const tbody = document.getElementById('step-3-averages-tbody');
     tbody.innerHTML = averageScores.map(item => `
       <tr>
-        <td><strong>${item.title}</strong><br><small style="color:var(--text-muted)">${item.notes || ''}</small></td>
+        <td><strong>${item.title}</strong><br><small style="color:var(--text-muted)"><span class="tag" style="font-size:10px; padding:1px 5px;">${item.current_list_title}</span> ${item.notes || ''}</small></td>
         <td style="color:var(--roy-color); font-weight:700;">${item.royPts} pt</td>
         <td style="color:var(--karen-color); font-weight:700;">${item.karenPts} pt</td>
         <td><span class="tag" style="font-size:12px; font-weight:700;">⭐ ${item.avgPts} pt</span></td>
@@ -745,14 +636,14 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   }
 
-  document.getElementById('btn-step-4-prev').addEventListener('click', () => setWizardStep(3));
-  document.getElementById('btn-step-4-next').addEventListener('click', () => {
-    setWizardStep(5);
-    initStep5Draft();
+  document.getElementById('btn-step-3-prev').addEventListener('click', () => setWizardStep(2));
+  document.getElementById('btn-step-3-next').addEventListener('click', () => {
+    setWizardStep(4);
+    initStep4Draft();
   });
 
-  // --- STAP 5: Draft / Keuzerondes ---
-  function initStep5Draft() {
+  // --- STAP 4: Draft / Keuzerondes ---
+  function initStep4Draft() {
     document.getElementById('starter-choice-box').style.display = 'flex';
     document.getElementById('draft-arena').style.display = 'none';
 
@@ -830,14 +721,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (availablePool.length === 0) {
       availableList.innerHTML = '<div class="status-msg success">🎉 Alle taken zijn verdeeld!</div>';
-      document.getElementById('btn-step-5-finish').style.display = 'inline-flex';
+      document.getElementById('btn-step-4-finish').style.display = 'inline-flex';
     } else {
-      document.getElementById('btn-step-5-finish').style.display = 'none';
+      document.getElementById('btn-step-4-finish').style.display = 'none';
       availableList.innerHTML = availablePool.map(item => `
         <div class="draft-pick-item" data-title="${item.title}">
           <div>
             <strong>${item.title}</strong>
-            <div style="font-size:11px; color:var(--text-muted)">${item.notes || ''}</div>
+            <div style="font-size:11px; color:var(--text-muted)"><span class="tag" style="font-size:9px; padding:1px 4px;">${item.current_list_title}</span> ${item.notes || ''}</div>
           </div>
           <span class="draft-pick-pts">${item.avgPts} pt</span>
         </div>
@@ -867,14 +758,14 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   }
 
-  document.getElementById('btn-step-5-prev').addEventListener('click', () => setWizardStep(4));
-  document.getElementById('btn-step-5-finish').addEventListener('click', () => {
-    setWizardStep(6);
-    renderStep6Finale();
+  document.getElementById('btn-step-4-prev').addEventListener('click', () => setWizardStep(3));
+  document.getElementById('btn-step-4-finish').addEventListener('click', () => {
+    setWizardStep(5);
+    renderStep5Finale();
   });
 
-  // --- STAP 6: Finale Summary & Google Tasks Apply ---
-  function renderStep6Finale() {
+  // --- STAP 5: Finale Summary & Google Tasks Apply ---
+  function renderStep5Finale() {
     document.getElementById('final-roy-stats').textContent = `${royChosenTasks.length} taken | ${royTotalScore.toFixed(1)} pt`;
     document.getElementById('final-karen-stats').textContent = `${karenChosenTasks.length} taken | ${karenTotalScore.toFixed(1)} pt`;
 
@@ -893,7 +784,7 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   }
 
-  document.getElementById('btn-step-6-prev').addEventListener('click', () => setWizardStep(5));
+  document.getElementById('btn-step-5-prev-final').addEventListener('click', () => setWizardStep(4));
 
   document.getElementById('btn-apply-division-google').addEventListener('click', async () => {
     const btn = document.getElementById('btn-apply-division-google');

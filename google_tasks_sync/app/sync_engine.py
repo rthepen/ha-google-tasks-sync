@@ -296,6 +296,37 @@ class SyncEngine:
         tasks_pool.sort(key=lambda x: (x.get("current_list_title", ""), x.get("title", "")))
         return tasks_pool
 
+    def get_captain_fixed_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Haalt alleen de taken op uit '03. Kapitein Roy' en '04. Kapitein Karen'."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            return []
+        
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+        
+        tasks_pool = []
+        for cl in tasklists:
+            list_id = cl["id"]
+            list_title = cl["title"]
+            l_low = list_title.lower()
+            if "kapitein roy" in l_low or "kapitein karen" in l_low:
+                raw_tasks = self.client.list_tasks(target_account, list_id)
+                for t in raw_tasks:
+                    if t.get("title", "").startswith("📂 "):
+                        continue
+                    tasks_pool.append({
+                        "id": t.get("id"),
+                        "title": t.get("title", ""),
+                        "notes": t.get("notes", ""),
+                        "status": t.get("status", "needsAction"),
+                        "current_list_id": list_id,
+                        "current_list_title": list_title
+                    })
+        
+        tasks_pool.sort(key=lambda x: x.get("title", ""))
+        return tasks_pool
+
     def reassign_tasks_batch(self, moves: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
         """Verplaatst taken naar een andere lijst (doel-lijst). moves = [{ task_id, current_list_id, target_list_title, title, notes, status }]"""
         accounts = self.client.get_accounts()

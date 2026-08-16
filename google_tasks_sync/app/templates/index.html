@@ -26,17 +26,17 @@
       
       <!-- Nav Tabs -->
       <div class="nav-tabs-header">
-        <button class="nav-tab active" id="tab-btn-editor" data-view="editor-view">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-          JSON Live Editor
-        </button>
-        <button class="nav-tab" id="tab-btn-manager" data-view="manager-view">
+        <button class="nav-tab active" id="tab-btn-manager" data-view="manager-view">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
           📋 Taken Beheerder
         </button>
         <button class="nav-tab" id="tab-btn-divider" data-view="divider-view">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
           ⚖️ Kapitein Verdeler
+        </button>
+        <button class="nav-tab" id="tab-btn-editor" data-view="editor-view">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          JSON Live Editor
         </button>
       </div>
 
@@ -48,66 +48,8 @@
       </div>
     </header>
 
-    <!-- VIEW 1: JSON Editor & Debug Log -->
-    <main class="content-area active-view" id="view-editor">
-      <!-- Top Section: JSON Editor Panel -->
-      <div class="editor-panel">
-        <div class="editor-toolbar">
-          <div class="toolbar-left">
-            <span class="editor-title">Taken & Lijsten (JSON)</span>
-            <span class="tag" id="json-stats-tag">Laden...</span>
-          </div>
-          
-          <div class="toolbar-actions">
-            <button class="btn btn-outline" id="btn-copy-json" title="Kopieer JSON naar klembord">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-              Kopieer JSON
-            </button>
-            <button class="btn btn-outline" id="btn-paste-json" title="Plak JSON vanaf klembord">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
-              Plak JSON
-            </button>
-            <button class="btn btn-outline" id="btn-reload-json" title="Herlaad vanuit Google Tasks">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-              Herlaad
-            </button>
-            <button class="btn btn-success" id="btn-apply-json" title="Pas gewijzigde JSON live toe op Google Tasks">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-              Toepassen naar Google Tasks
-            </button>
-          </div>
-        </div>
-
-        <div class="editor-container">
-          <textarea id="json-textarea" spellcheck="false" placeholder="Laden van taken JSON..."></textarea>
-        </div>
-        
-        <div class="editor-footer">
-          <div id="json-status-msg" class="status-msg">Gereed: Bewerk, kopieer of plak JSON en klik op Toepassen.</div>
-        </div>
-      </div>
-
-      <!-- Bottom Section: Complete Debug & Sync Log Panel -->
-      <div class="debug-panel">
-        <div class="debug-header">
-          <div class="debug-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-            <span>Live Debug & Synchronisatie Log</span>
-          </div>
-          <div class="debug-actions">
-            <span class="debug-auto-tag" id="debug-last-sync">Laatste sync: -</span>
-            <button class="btn btn-sm btn-outline" id="btn-clear-logs">Logs Wissen</button>
-            <button class="btn btn-sm btn-outline" id="btn-refresh-logs">Verversen</button>
-          </div>
-        </div>
-        <div class="terminal-log" id="logs-container">
-          <div class="log-entry">[SYSTEM] Debug logboek geïnitialiseerd...</div>
-        </div>
-      </div>
-    </main>
-
-    <!-- VIEW 2: Complete Taken Beheerder & Lijsten Verschuiver -->
-    <main class="content-area" id="view-manager" style="display:none;">
+    <!-- VIEW 1: Complete Taken Beheerder & Lijsten Verschuiver (DEFAULT) -->
+    <main class="content-area active-view" id="view-manager">
       <div class="manager-panel">
         <div class="manager-toolbar">
           <div class="toolbar-left">
@@ -161,60 +103,88 @@
       </div>
     </main>
 
+    <!-- VIEW 2: JSON Editor & Debug Log -->
+    <main class="content-area" id="view-editor" style="display:none;">
+      <!-- Top Section: JSON Editor Panel -->
+      <div class="editor-panel">
+        <div class="editor-toolbar">
+          <div class="toolbar-left">
+            <span class="editor-title">Taken & Lijsten (JSON)</span>
+            <span class="tag" id="json-stats-tag">Laden...</span>
+          </div>
+          
+          <div class="toolbar-actions">
+            <button class="btn btn-outline" id="btn-copy-json" title="Kopieer JSON naar klembord">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              Kopieer JSON
+            </button>
+            <button class="btn btn-outline" id="btn-format-json" title="Formatteer en valideer JSON">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+              Formatteer JSON
+            </button>
+            <button class="btn btn-outline" id="btn-reload-json" title="Herlaad laatste export van Google Tasks">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              Herlaad
+            </button>
+            <button class="btn btn-primary" id="btn-save-json">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              Opslaan & Toepassen
+            </button>
+          </div>
+        </div>
+
+        <div class="editor-wrapper">
+          <textarea id="json-textarea" spellcheck="false" placeholder="JSON takenstructuur laden..."></textarea>
+        </div>
+
+        <div class="editor-footer">
+          <div id="json-status-msg" class="status-msg ready">Klaar voor bewerking</div>
+          <span class="file-path">/config/taken.json</span>
+        </div>
+      </div>
+
+      <!-- Bottom Section: Full Live Debug Log -->
+      <div class="debug-panel">
+        <div class="debug-toolbar">
+          <div class="toolbar-left">
+            <span class="debug-title">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              Live Synchronisatie & Debug Log
+            </span>
+            <span class="log-count" id="log-count">0 regels</span>
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-sm btn-outline" id="btn-clear-logs">Wissen</button>
+          </div>
+        </div>
+        <div class="debug-log-view" id="debug-log-view">
+          <div class="log-placeholder">Logboek wordt geïnitialiseerd...</div>
+        </div>
+      </div>
+    </main>
+
     <!-- VIEW 3: Kapitein Taken Verdeler Wizard -->
     <main class="content-area" id="view-divider" style="display:none;">
       <div class="divider-wizard-card">
         
-        <!-- Wizard Steps Indicator -->
+        <!-- Wizard Steps Indicator (5 Stappen: Roy Punten, Karen Punten, Gemiddelden, Kiezen, Sync) -->
         <div class="wizard-stepper">
-          <div class="step-item active" data-step="1"><span class="step-num">1</span> Wisselende Taken</div>
+          <div class="step-item active" data-step="1"><span class="step-num">1</span> Punten Roy (1000)</div>
           <div class="step-line"></div>
-          <div class="step-item" data-step="2"><span class="step-num">2</span> Punten Roy (1000)</div>
+          <div class="step-item" data-step="2"><span class="step-num">2</span> Punten Karen (1000)</div>
           <div class="step-line"></div>
-          <div class="step-item" data-step="3"><span class="step-num">3</span> Punten Karen (1000)</div>
+          <div class="step-item" data-step="3"><span class="step-num">3</span> Gemiddelden</div>
           <div class="step-line"></div>
-          <div class="step-item" data-step="4"><span class="step-num">4</span> Gemiddelden</div>
+          <div class="step-item" data-step="4"><span class="step-num">4</span> Taken Kiezen</div>
           <div class="step-line"></div>
-          <div class="step-item" data-step="5"><span class="step-num">5</span> Taken Kiezen</div>
-          <div class="step-line"></div>
-          <div class="step-item" data-step="6"><span class="step-num">6</span> Overzicht & Sync</div>
+          <div class="step-item" data-step="5"><span class="step-num">5</span> Overzicht & Sync</div>
         </div>
 
-        <!-- STAP 1: Wisselende Taken Selecteren -->
+        <!-- STAP 1 (Oorspronkelijk Stap 2): Punten Roy (1000pt) -->
         <div class="wizard-step-content" id="step-1-content">
           <div class="step-header">
-            <h2>Stap 1: Kies welke taken meedoen als Wisselende Kapitein</h2>
-            <p>Selecteer hieronder welke taken jullie in deze ronde willen verdelen. Gebruik de filters om snel tussen de lijsten te wisselen.</p>
-          </div>
-          
-          <!-- Lijst Filters -->
-          <div class="list-filters-bar" id="step-1-filters">
-            <button class="filter-tab active" data-filter="all">Alle Taken (<span id="count-filter-all">0</span>)</button>
-            <button class="filter-tab" data-filter="13. Wisselende Kapiteins">13. Wisselende Kapiteins (<span id="count-filter-13">0</span>)</button>
-            <button class="filter-tab" data-filter="11. Kapitein Roy">11. Kapitein Roy (<span id="count-filter-11">0</span>)</button>
-            <button class="filter-tab" data-filter="12. Kapitein Karen">12. Kapitein Karen (<span id="count-filter-12">0</span>)</button>
-            <button class="filter-tab" data-filter="09. Roy Persoonlijk">09. Roy Persoonlijk (<span id="count-filter-09">0</span>)</button>
-            <button class="filter-tab" data-filter="10. Karen Persoonlijk">10. Karen Persoonlijk (<span id="count-filter-10">0</span>)</button>
-          </div>
-
-          <div class="step-toolbar">
-            <button class="btn btn-sm btn-outline" id="btn-select-all-tasks">Alles in filter selecteren</button>
-            <button class="btn btn-sm btn-outline" id="btn-deselect-all-tasks">Alles in filter deselecteren</button>
-            <span class="tag" id="selected-tasks-count">0 taken geselecteerd</span>
-          </div>
-          <div class="tasks-selection-list" id="step-1-tasks-list">
-            <div class="loading-spinner">Taken ophalen...</div>
-          </div>
-          <div class="step-actions">
-            <button class="btn btn-primary" id="btn-step-1-next">Volgende: Roy's Punten ➔</button>
-          </div>
-        </div>
-
-        <!-- STAP 2: Punten Roy (1000pt) -->
-        <div class="wizard-step-content" id="step-2-content" style="display:none;">
-          <div class="step-header">
-            <h2>Stap 2: Puntenverdeling door Roy (1000 Punten)</h2>
-            <p>Verdeel exact 1000 punten over de taken. Meer punten = zwaardere taak / meer moeite.</p>
+            <h2>Stap 1: Puntenverdeling door Roy (1000 Punten)</h2>
+            <p>Verdeel exact 1000 punten over alle taken uit <strong>03. Kapitein Roy</strong> en <strong>04. Kapitein Karen</strong>. Gebruik de knoppen (+1, -1, +5, -5, +20, -20) om snel aan te passen.</p>
           </div>
           <div class="budget-bar-card">
             <div class="budget-header">
@@ -223,17 +193,35 @@
             </div>
             <div class="progress-bar-bg"><div class="progress-bar-fill" id="roy-budget-progress" style="width: 100%;"></div></div>
           </div>
-          <div class="points-grid" id="step-2-points-grid"></div>
+          <div class="points-grid" id="step-1-points-grid"></div>
           <div class="step-actions">
-            <button class="btn btn-outline" id="btn-step-2-prev">⬅ Vorige</button>
-            <button class="btn btn-primary" id="btn-step-2-next">Volgende: Karen's Punten ➔</button>
+            <button class="btn btn-primary" id="btn-step-1-next">Volgende: Karen's Punten ➔</button>
           </div>
         </div>
 
-        <!-- STAP 3: Punten Karen (1000pt) -->
+        <!-- STAP 2: Punten Karen (1000pt) -->
+        <div class="wizard-step-content" id="step-2-content" style="display:none;">
+          <div class="step-header">
+            <h2>Stap 2: Puntenverdeling door Karen (1000 Punten)</h2>
+            <p>Karen verdeelt nu ook exact 1000 punten over dezelfde kapiteinstaken. Gebruik de knoppen (+1, -1, +5, -5, +20, -20) om snel aan te passen.</p>
+          </div>
+          <div class="budget-bar-card">
+            <div class="budget-header">
+              <span>Budget Status:</span>
+              <strong id="karen-budget-text">1000 / 1000 punten over</strong>
+            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="karen-budget-progress" style="width: 100%;"></div></div>
+          </div>
+          <div class="points-grid" id="step-2-points-grid"></div>
+          <div class="step-actions">
+            <button class="btn btn-outline" id="btn-step-2-prev">⬅ Vorige</button>
+            <button class="btn btn-primary" id="btn-step-2-next">Volgende: Gemiddelden Berekenen ➔</button>
+          </div>
+        </div>
+
+        <!-- STAP 3: Gemiddelden Overzicht -->
         <div class="wizard-step-content" id="step-3-content" style="display:none;">
           <div class="step-header">
-            <h2>Stap 3: Puntenverdeling door Karen (1000 Punten)</h2>
             <p>Karen verdeelt onafhankelijk haar eigen 1000 punten over dezelfde taken.</p>
           </div>
           <div class="budget-bar-card">
@@ -250,10 +238,10 @@
           </div>
         </div>
 
-        <!-- STAP 4: Gemiddelden Overzicht -->
-        <div class="wizard-step-content" id="step-4-content" style="display:none;">
+        <!-- STAP 3: Gemiddelden Overzicht -->
+        <div class="wizard-step-content" id="step-3-content" style="display:none;">
           <div class="step-header">
-            <h2>Stap 4: Gemiddelde Punten per Taak</h2>
+            <h2>Stap 3: Gemiddelde Punten per Taak</h2>
             <p>Hieronder staan de taken gerangschikt op het gewogen gemiddelde van Roy & Karen.</p>
           </div>
           <div class="averages-table-card">
@@ -266,20 +254,20 @@
                   <th>Gewogen Gemiddelde</th>
                 </tr>
               </thead>
-              <tbody id="step-4-averages-tbody"></tbody>
+              <tbody id="step-3-averages-tbody"></tbody>
             </table>
           </div>
           <div class="step-actions">
-            <button class="btn btn-outline" id="btn-step-4-prev">⬅ Vorige</button>
-            <button class="btn btn-primary" id="btn-step-4-next">Volgende: Start Keuzeronde ➔</button>
+            <button class="btn btn-outline" id="btn-step-3-prev">⬅ Vorige</button>
+            <button class="btn btn-primary" id="btn-step-3-next">Volgende: Start Keuzeronde ➔</button>
           </div>
         </div>
 
-        <!-- STAP 5: Interactieve Keuzeronde (Draft) -->
-        <div class="wizard-step-content" id="step-5-content" style="display:none;">
+        <!-- STAP 4: Interactieve Keuzeronde (Draft) -->
+        <div class="wizard-step-content" id="step-4-content" style="display:none;">
           <div class="step-header">
-            <h2>Stap 5: Taken Kiezen & Punten Balanceren</h2>
-            <p id="step-5-instruction">Wie mag er beginnen met kiezen?</p>
+            <h2>Stap 4: Taken Kiezen & Punten Balanceren</h2>
+            <p id="step-4-instruction">Wie mag er beginnen met kiezen?</p>
           </div>
 
           <!-- Starter Keuze Modal/Box indien nog niet gestart -->
@@ -296,7 +284,7 @@
             <div class="turn-banner" id="turn-banner">
               <span id="turn-badge" class="badge">Aan de beurt</span>
               <strong id="turn-text">Karen mag kiezen</strong>
-              <small id="turn-subtext">Kies een taak. De beurt wisselt zodra Roy minder of evenveel punten heeft.</small>
+              <small id="turn-subtext">Kies een taak. De beurt wisselt zodra de ander minder punten heeft.</small>
             </div>
 
             <!-- Balans Meter -->
@@ -336,23 +324,23 @@
             </div>
 
             <div class="step-actions" style="margin-top:16px;">
-              <button class="btn btn-outline" id="btn-step-5-prev">⬅ Terug naar Gemiddelden</button>
-              <button class="btn btn-success" id="btn-step-5-finish" style="display:none;">Naar Eindoverzicht ➔</button>
+              <button class="btn btn-outline" id="btn-step-4-prev">⬅ Terug naar Gemiddelden</button>
+              <button class="btn btn-success" id="btn-step-4-finish" style="display:none;">Naar Eindoverzicht ➔</button>
             </div>
           </div>
         </div>
 
-        <!-- STAP 6: Eindoverzicht & Syncen naar Google Tasks -->
-        <div class="wizard-step-content" id="step-6-content" style="display:none;">
+        <!-- STAP 5: Eindoverzicht & Syncen naar Google Tasks -->
+        <div class="wizard-step-content" id="step-5-content" style="display:none;">
           <div class="step-header">
-            <h2>Stap 6: Eindoverzicht & Synchronisatie</h2>
+            <h2>Stap 5: Eindoverzicht & Synchronisatie</h2>
             <p>Alle taken zijn verdeeld! Controleer hieronder het resultaat en synchroniseer direct naar Google Tasks.</p>
           </div>
 
           <div class="final-summary-grid">
             <div class="final-card roy">
               <div class="final-card-header">
-                <h3>11. Kapitein Roy</h3>
+                <h3>03. Kapitein Roy</h3>
                 <span class="badge" id="final-roy-stats">0 taken | 0 pt</span>
               </div>
               <ul class="final-tasks-list" id="final-roy-list"></ul>
@@ -360,7 +348,7 @@
 
             <div class="final-card karen">
               <div class="final-card-header">
-                <h3>12. Kapitein Karen</h3>
+                <h3>04. Kapitein Karen</h3>
                 <span class="badge" id="final-karen-stats">0 taken | 0 pt</span>
               </div>
               <ul class="final-tasks-list" id="final-karen-list"></ul>
@@ -368,7 +356,7 @@
           </div>
 
           <div class="step-actions finale">
-            <button class="btn btn-outline" id="btn-step-6-prev">⬅ Terug naar Keuzeronde</button>
+            <button class="btn btn-outline" id="btn-step-5-prev-final">⬅ Terug naar Keuzeronde</button>
             <button class="btn btn-success btn-lg" id="btn-apply-division-google">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
               Toepassen & Syncen naar Google Tasks! 🚀
