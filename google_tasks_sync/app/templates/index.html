@@ -74,6 +74,10 @@
           </div>
 
           <div class="toolbar-actions">
+            <button class="btn btn-outline" id="btn-open-print-modal" title="Schematische Takenkaart Afdrukken / Exporteren">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              🖨️ Afdrukken Overzicht
+            </button>
             <button class="btn btn-outline" id="btn-reload-manager">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
               Herladen
@@ -368,9 +372,90 @@
     </main>
   </div>
 
+  <!-- Print Configuration & Preview Modal -->
+  <div id="print-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          <h2>Schematisch Takenoverzicht Afdrukken</h2>
+        </div>
+        <button class="modal-close" id="btn-close-print-modal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="print-filter-section">
+          <div class="filter-header-row">
+            <h3>1. Selecteer Hoofdlijsten:</h3>
+            <div class="filter-toggle-buttons">
+              <button class="btn btn-sm btn-outline" id="btn-print-select-all-lists">Alles aan</button>
+              <button class="btn btn-sm btn-outline" id="btn-print-deselect-all-lists">Alles uit</button>
+            </div>
+          </div>
+          <div class="checkbox-grid" id="print-lists-checkboxes">
+            <!-- Dynamisch gevuld met 5 hoofdlijsten -->
+          </div>
+        </div>
+
+        <div class="print-filter-section">
+          <div class="filter-header-row">
+            <h3>2. Selecteer Sub-lijsten (Thema's & Ruimtes):</h3>
+            <div class="filter-toggle-buttons">
+              <button class="btn btn-sm btn-outline" id="btn-print-select-all-sublists">Alles aan</button>
+              <button class="btn btn-sm btn-outline" id="btn-print-deselect-all-sublists">Alles uit</button>
+            </div>
+          </div>
+          <div class="checkbox-grid sublists-grid" id="print-sublists-checkboxes">
+            <!-- Dynamisch gevuld met sublijsten -->
+          </div>
+        </div>
+
+        <div class="print-filter-section">
+          <div class="filter-header-row">
+            <h3>3. Opmaak Opties:</h3>
+          </div>
+          <div class="options-row">
+            <label class="checkbox-item">
+              <input type="checkbox" id="print-opt-notes" checked>
+              <span>Toon taakdetails / instructies</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="print-opt-checkboxes" checked>
+              <span>Toon afvinkvakjes (⬜) voor pen/papier</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="print-opt-stats" checked>
+              <span>Toon aantal taken per categorie</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="print-preview-section">
+          <div class="preview-header">
+            <h3>Live Weergave Voorbeeld: (<span id="print-selected-count">0</span> geselecteerde taken)</h3>
+          </div>
+          <div class="print-preview-box" id="print-preview-box">
+            <!-- Dynamische schematische render -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btn-cancel-print">Annuleren</button>
+        <button class="btn btn-primary btn-lg" id="btn-execute-print">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          Nu Afdrukken / Opslaan als PDF 🖨️
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedicated Printable Container for @media print -->
+  <div id="printable-area" class="printable-document"></div>
+
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.11"></script>
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.12"></script>
 </body>
 </html>

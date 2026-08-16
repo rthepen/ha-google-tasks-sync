@@ -885,4 +885,255 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // =========================================================================
+  // 3. SCHEMATISCH AFDRUKKEN OVERZICHT (PRINT MODAL & SCHEMATIC VIEW)
+  // =========================================================================
+  const btnOpenPrintModal = document.getElementById('btn-open-print-modal');
+  const printModal = document.getElementById('print-modal');
+  const btnClosePrintModal = document.getElementById('btn-close-print-modal');
+  const btnCancelPrint = document.getElementById('btn-cancel-print');
+  const btnExecutePrint = document.getElementById('btn-execute-print');
+
+  const printListsContainer = document.getElementById('print-lists-checkboxes');
+  const printSublistsContainer = document.getElementById('print-sublists-checkboxes');
+  const printPreviewBox = document.getElementById('print-preview-box');
+  const printableArea = document.getElementById('printable-area');
+  const printSelectedCount = document.getElementById('print-selected-count');
+
+  const printOptNotes = document.getElementById('print-opt-notes');
+  const printOptCheckboxes = document.getElementById('print-opt-checkboxes');
+  const printOptStats = document.getElementById('print-opt-stats');
+
+  const btnPrintSelectAllLists = document.getElementById('btn-print-select-all-lists');
+  const btnPrintDeselectAllLists = document.getElementById('btn-print-deselect-all-lists');
+  const btnPrintSelectAllSublists = document.getElementById('btn-print-select-all-sublists');
+  const btnPrintDeselectAllSublists = document.getElementById('btn-print-deselect-all-sublists');
+
+  let selectedPrintLists = new Set(available5Lists);
+  let selectedPrintSublists = new Set();
+
+  function openPrintModal() {
+    if (!printModal) return;
+
+    // Collect all available sublists across managerTasks
+    const allFoundSublists = new Set();
+    managerTasks.forEach(t => {
+      allFoundSublists.add(extractSublist(t.notes, t.current_list_title, t.title));
+    });
+
+    if (selectedPrintSublists.size === 0) {
+      selectedPrintSublists = new Set(allFoundSublists);
+    }
+
+    // Populate main lists checkboxes
+    printListsContainer.innerHTML = available5Lists.map(l => `
+      <label class="checkbox-item">
+        <input type="checkbox" class="cb-print-list" value="${l}" ${selectedPrintLists.has(l) ? 'checked' : ''}>
+        <span>${l}</span>
+      </label>
+    `).join('');
+
+    // Populate sublists checkboxes
+    const sortedSublists = Array.from(allFoundSublists).sort();
+    printSublistsContainer.innerHTML = sortedSublists.map(s => `
+      <label class="checkbox-item">
+        <input type="checkbox" class="cb-print-sublist" value="${s}" ${selectedPrintSublists.has(s) ? 'checked' : ''}>
+        <span>📂 ${s}</span>
+      </label>
+    `).join('');
+
+    // Attach listeners
+    printListsContainer.querySelectorAll('.cb-print-list').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) selectedPrintLists.add(cb.value);
+        else selectedPrintLists.delete(cb.value);
+        renderSchematicPreview();
+      });
+    });
+
+    printSublistsContainer.querySelectorAll('.cb-print-sublist').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) selectedPrintSublists.add(cb.value);
+        else selectedPrintSublists.delete(cb.value);
+        renderSchematicPreview();
+      });
+    });
+
+    renderSchematicPreview();
+    printModal.style.display = 'flex';
+  }
+
+  function closePrintModal() {
+    if (printModal) printModal.style.display = 'none';
+  }
+
+  function generateSchematicHtml() {
+    const showNotes = printOptNotes ? printOptNotes.checked : true;
+    const showCb = printOptCheckboxes ? printOptCheckboxes.checked : true;
+    const showStats = printOptStats ? printOptStats.checked : true;
+
+    // Filter tasks
+    const tasksToPrint = managerTasks.filter(t => {
+      const sub = extractSublist(t.notes, t.current_list_title, t.title);
+      return selectedPrintLists.has(t.current_list_title) && selectedPrintSublists.has(sub);
+    });
+
+    if (printSelectedCount) {
+      printSelectedCount.textContent = tasksToPrint.length;
+    }
+
+    if (tasksToPrint.length === 0) {
+      return '<div style="padding:20px; text-align:center; color:#64748b;">Geen taken geselecteerd met de huidige filterinstellingen. Vink minimaal één lijst en sublijst aan.</div>';
+    }
+
+    // Group tasks by Main List -> Sublist
+    const grouped = {};
+    available5Lists.forEach(listTitle => {
+      if (selectedPrintLists.has(listTitle)) {
+        grouped[listTitle] = {};
+      }
+    });
+
+    tasksToPrint.forEach(t => {
+      const listTitle = t.current_list_title;
+      const sub = extractSublist(t.notes, listTitle, t.title);
+      if (!grouped[listTitle]) grouped[listTitle] = {};
+      if (!grouped[listTitle][sub]) grouped[listTitle][sub] = [];
+      grouped[listTitle][sub].push(t);
+    });
+
+    const nowStr = new Date().toLocaleString('nl-NL', { dateStyle: 'full', timeStyle: 'short' });
+
+    let html = `
+      <div class="schematic-sheet">
+        <div class="schematic-header">
+          <h1>📋 Google Tasks Schematisch Overzicht</h1>
+          <div class="schematic-meta">
+            <span><strong>Datum:</strong> ${nowStr}</span>
+            <span><strong>Totaal Geselecteerd:</strong> ${tasksToPrint.length} taken</span>
+            <span><strong>Lijsten:</strong> ${selectedPrintLists.size} van 5</span>
+          </div>
+        </div>
+        <div class="schematic-grid">
+    `;
+
+    Object.keys(grouped).forEach(listTitle => {
+      const subgroups = grouped[listTitle];
+      const subKeys = Object.keys(subgroups);
+      const totalInList = subKeys.reduce((acc, k) => acc + subgroups[k].length, 0);
+
+      if (totalInList === 0) return;
+
+      html += `
+        <div class="schematic-list-card">
+          <div class="schematic-list-title">
+            <h2>📑 ${listTitle}</h2>
+            ${showStats ? `<span class="schematic-list-badge">${totalInList} taken</span>` : ''}
+          </div>
+          <div class="schematic-subgroups">
+      `;
+
+      subKeys.sort().forEach(subName => {
+        const subTasks = subgroups[subName];
+        if (subTasks.length === 0) return;
+
+        html += `
+          <div class="schematic-subgroup">
+            <div class="schematic-subgroup-title">
+              <span>📂 ${subName}</span>
+              ${showStats ? `<span style="font-size:11px; font-weight:normal; color:#64748b;">(${subTasks.length})</span>` : ''}
+            </div>
+            <table class="schematic-tasks-table">
+              <tbody>
+        `;
+
+        subTasks.forEach(t => {
+          const cleanNotes = (t.notes || '').replace(/^\[(.*?)\]\s*/, '');
+          html += `
+            <tr>
+              ${showCb ? '<td class="schematic-cb">⬜</td>' : ''}
+              <td>
+                <div class="schematic-task-main">${t.title}</div>
+                ${(showNotes && cleanNotes) ? `<div class="schematic-task-notes">${cleanNotes}</div>` : ''}
+              </td>
+            </tr>
+          `;
+        });
+
+        html += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+    });
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    return html;
+  }
+
+  function renderSchematicPreview() {
+    const html = generateSchematicHtml();
+    if (printPreviewBox) printPreviewBox.innerHTML = html;
+  }
+
+  if (btnOpenPrintModal) btnOpenPrintModal.addEventListener('click', openPrintModal);
+  if (btnClosePrintModal) btnClosePrintModal.addEventListener('click', closePrintModal);
+  if (btnCancelPrint) btnCancelPrint.addEventListener('click', closePrintModal);
+
+  if (printOptNotes) printOptNotes.addEventListener('change', renderSchematicPreview);
+  if (printOptCheckboxes) printOptCheckboxes.addEventListener('change', renderSchematicPreview);
+  if (printOptStats) printOptStats.addEventListener('change', renderSchematicPreview);
+
+  if (btnPrintSelectAllLists) {
+    btnPrintSelectAllLists.addEventListener('click', () => {
+      available5Lists.forEach(l => selectedPrintLists.add(l));
+      printListsContainer.querySelectorAll('.cb-print-list').forEach(cb => cb.checked = true);
+      renderSchematicPreview();
+    });
+  }
+
+  if (btnPrintDeselectAllLists) {
+    btnPrintDeselectAllLists.addEventListener('click', () => {
+      selectedPrintLists.clear();
+      printListsContainer.querySelectorAll('.cb-print-list').forEach(cb => cb.checked = false);
+      renderSchematicPreview();
+    });
+  }
+
+  if (btnPrintSelectAllSublists) {
+    btnPrintSelectAllSublists.addEventListener('click', () => {
+      managerTasks.forEach(t => {
+        selectedPrintSublists.add(extractSublist(t.notes, t.current_list_title, t.title));
+      });
+      printSublistsContainer.querySelectorAll('.cb-print-sublist').forEach(cb => cb.checked = true);
+      renderSchematicPreview();
+    });
+  }
+
+  if (btnPrintDeselectAllSublists) {
+    btnPrintDeselectAllSublists.addEventListener('click', () => {
+      selectedPrintSublists.clear();
+      printSublistsContainer.querySelectorAll('.cb-print-sublist').forEach(cb => cb.checked = false);
+      renderSchematicPreview();
+    });
+  }
+
+  if (btnExecutePrint) {
+    btnExecutePrint.addEventListener('click', () => {
+      const html = generateSchematicHtml();
+      printableArea.innerHTML = html;
+      window.print();
+    });
+  }
+
 });
