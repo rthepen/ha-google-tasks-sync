@@ -39,6 +39,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
+  // STATE VARIABLES
+  // =========================================================================
+  let wizardInitialized = false;
+  let allCaptainTasks = [];
+  let royPoints = {};
+  let karenPoints = {};
+  let averageScores = []; // [{ task, royPts, karenPts, avgPts }]
+
+  // Draft State
+  let availablePool = [];
+  let royChosenTasks = [];
+  let karenChosenTasks = [];
+  let royTotalScore = 0;
+  let karenTotalScore = 0;
+  let currentTurn = 'roy'; // 'roy' of 'karen'
+
+  // =========================================================================
   // 0. TAKEN BEHEERDER & CATEGORIE VERSCHUIVER LOGIC (MET SUB-LIJSTEN)
   // =========================================================================
   let managerTasks = [];
@@ -483,19 +500,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   // 2. KAPITEIN VERDELER WIZARD LOGIC (STAPPEN 1 T/M 5)
   // =========================================================================
-  let wizardInitialized = false;
-  let allCaptainTasks = [];
-  let royPoints = {};
-  let karenPoints = {};
-  let averageScores = []; // [{ task, royPts, karenPts, avgPts }]
-
-  // Draft State
-  let availablePool = [];
-  let royChosenTasks = [];
-  let karenChosenTasks = [];
-  let royTotalScore = 0;
-  let karenTotalScore = 0;
-  let currentTurn = 'roy'; // 'roy' of 'karen'
 
   function setWizardStep(stepNum) {
     for (let i = 1; i <= 5; i++) {
