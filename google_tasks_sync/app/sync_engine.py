@@ -307,15 +307,11 @@ class SyncEngine:
                     continue
                 tit = t.get("title", "").strip()
                 has_num = bool(re.search(r"^\d+\.", tit)) or bool(re.search(r"-\s*\d+\.", tit))
-                is_missing_parent = (list_title == "05. Wisselende Kapiteins" and not t.get("parent") and not tit.startswith("📂 "))
-                
                 issues = []
                 if is_todo:
                     issues.append("Staat in 'To do' lijst")
                 if not has_num and not tit.startswith("📂 "):
                     issues.append("Geen volgnummer")
-                if is_missing_parent:
-                    issues.append("Geen submap")
 
                 tasks_pool.append({
                     "id": t.get("id"),
@@ -358,15 +354,12 @@ class SyncEngine:
                     continue
 
                 has_num = bool(re.search(r"^\d+\.", tit)) or bool(re.search(r"-\s*\d+\.", tit))
-                is_missing_parent = (list_title == "05. Wisselende Kapiteins" and not t.get("parent"))
                 
                 issues = []
                 if is_todo:
                     issues.append("Staat in de 'To do' lijst")
                 if not has_num:
                     issues.append("Geen volgnummer")
-                if is_missing_parent:
-                    issues.append("Geen submap gekoppeld")
 
                 if issues:
                     # Compute smart suggestions

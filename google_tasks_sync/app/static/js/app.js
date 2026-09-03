@@ -98,6 +98,57 @@ document.addEventListener('DOMContentLoaded', () => {
     '06. Twee Kapiteins (Samen Doen)': ["01. Gezamenlijk (Samen Besluiten)"]
   };
 
+  const allSublistCategories = {
+    "Bouw Projecten": [
+      "01. Bouw - Verwarming Kelder",
+      "02. Bouw - Studio Dave",
+      "03. Bouw - Studio Rahiena",
+      "04. Bouw - Eigen Studio",
+      "05. Bouw - Thuisaccu",
+      "06. Bouw - Home Assistant",
+      "07. Bouw Woning"
+    ],
+    "Gezin & Wisselend": [
+      "08. Gezinshuis",
+      "09. Wisselend & Gezin",
+      "01. Gezamenlijk (Samen Besluiten)"
+    ],
+    "Zorg, Beheer & Vrije Tijd": [
+      "01. Persoonlijke Zorg",
+      "02. Techniek & Beheer",
+      "03. Huishouden & Zorg",
+      "01. Hobby's & Vrije Tijd"
+    ]
+  };
+
+  function buildSublistOptions(selectedSublist, targetList) {
+    let html = `<option value="">-- Geen / Automatisch Bepalen --</option>`;
+    
+    // Aanbevolen voor gekozen lijst
+    const recommended = sublistsByList[targetList] || [];
+    if (recommended.length > 0) {
+      html += `<optgroup label="⭐ Aanbevolen voor ${targetList}">`;
+      recommended.forEach(s => {
+        const isSel = (s === selectedSublist) || (selectedSublist && s.toLowerCase().includes(selectedSublist.toLowerCase()));
+        html += `<option value="${s}" ${isSel ? 'selected' : ''}>📂 ${s}</option>`;
+      });
+      html += `</optgroup>`;
+    }
+
+    // Alle andere categorieën
+    Object.keys(allSublistCategories).forEach(cat => {
+      html += `<optgroup label="📁 ${cat}">`;
+      allSublistCategories[cat].forEach(s => {
+        if (recommended.includes(s)) return;
+        const isSel = (s === selectedSublist);
+        html += `<option value="${s}" ${isSel ? 'selected' : ''}>${s}</option>`;
+      });
+      html += `</optgroup>`;
+    });
+
+    return html;
+  }
+
   function extractSublist(notes, listTitle, taskTitle) {
     if (notes) {
       const match = notes.match(/^\[(.*?)\]/);
@@ -1583,15 +1634,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ).join(' ');
 
         const targetList = t.suggested_list || t.current_list_title || availableLists[0];
-        const sublists = sublistsByList[targetList] || [];
-
         const listOptions = availableLists.map(l => 
           `<option value="${l}" ${l === targetList ? 'selected' : ''}>${l}</option>`
         ).join('');
 
-        const sublistOptions = `<option value="">-- Geen / Automatisch --</option>` + sublists.map(s => 
-          `<option value="${s}" ${s === t.suggested_sublist ? 'selected' : ''}>📂 ${s}</option>`
-        ).join('');
+        const sublistOptions = buildSublistOptions(t.suggested_sublist, targetList);
 
         cardsHtml += `
           <div class="inbox-item-card" id="inbox-card-${t.id}" data-id="${t.id}" data-current-list-id="${t.current_list_id}" style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
@@ -1644,10 +1691,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const subSelect = card.querySelector('.inbox-sublist-select');
         listSelect.addEventListener('change', () => {
           const chosenList = listSelect.value;
-          const sublists = sublistsByList[chosenList] || [];
-          subSelect.innerHTML = `<option value="">-- Geen / Automatisch --</option>` + sublists.map(s => 
-            `<option value="${s}">📂 ${s}</option>`
-          ).join('');
+          subSelect.innerHTML = buildSublistOptions(subSelect.value, chosenList);
         });
 
         // Apply format button
