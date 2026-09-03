@@ -471,7 +471,8 @@ class SyncEngine:
             if t.get("deleted"):
                 continue
             t_tit_clean = t.get("title", "").replace("📂", "").strip().lower()
-            if clean_sub and clean_sub.lower() in t_tit_clean:
+            clean_sub_pure = re.sub(r"^\d+\.\s*", "", clean_sub).strip().lower()
+            if clean_sub_pure and (clean_sub_pure in t_tit_clean or t_tit_clean in clean_sub_pure):
                 parent_folder_id = t["id"]
                 break
 
@@ -636,7 +637,8 @@ class SyncEngine:
                 continue
             # Look for matching parent folder header like '📂 Gezinshuis' or '📂 Bouw Woning'
             t_tit_clean = t.get("title", "").replace("📂", "").strip().lower()
-            if clean_sub_name and clean_sub_name.lower() in t_tit_clean:
+            clean_sub_pure = re.sub(r"^\d+\.\s*", "", clean_sub_name).strip().lower()
+            if clean_sub_pure and (clean_sub_pure in t_tit_clean or t_tit_clean in clean_sub_pure):
                 parent_folder_id = t["id"]
                 break
 
