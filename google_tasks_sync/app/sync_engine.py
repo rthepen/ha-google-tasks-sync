@@ -300,25 +300,262 @@ class SyncEngine:
         for cl in tasklists:
             list_id = cl["id"]
             list_title = cl["title"]
-            if list_title.lower() == "to do":
-                continue
+            is_todo = (list_title.lower() == "to do")
             raw_tasks = self.client.list_tasks(target_account, list_id)
             for t in raw_tasks:
                 if t.get("deleted"):
                     continue
+                tit = t.get("title", "").strip()
+                has_num = bool(re.search(r"^\d+\.", tit)) or bool(re.search(r"-\s*\d+\.", tit))
+                is_missing_parent = (list_title == "05. Wisselende Kapiteins" and not t.get("parent") and not tit.startswith("📂 "))
+                
+                issues = []
+                if is_todo:
+                    issues.append("Staat in 'To do' lijst")
+                if not has_num and not tit.startswith("📂 "):
+                    issues.append("Geen volgnummer")
+                if is_missing_parent:
+                    issues.append("Geen submap")
+
                 tasks_pool.append({
                     "id": t.get("id"),
-                    "title": t.get("title", ""),
+                    "title": tit,
                     "notes": t.get("notes", ""),
                     "status": t.get("status", "needsAction"),
                     "due": t.get("due"),
+                    "parent_id": t.get("parent"),
                     "current_list_id": list_id,
-                    "current_list_title": list_title
+                    "current_list_title": list_title,
+                    "is_todo": is_todo,
+                    "needs_formatting": len(issues) > 0,
+                    "issues": issues
                 })
         
-        # Sorteer op huidige lijst en titel
-        tasks_pool.sort(key=lambda x: (x.get("current_list_title", ""), x.get("title", "")))
+        # Sorteer: onvolledige taken bovenaan, daarna op lijst en titel
+        tasks_pool.sort(key=lambda x: (not x.get("needs_formatting", False), x.get("current_list_title", ""), x.get("title", "")))
         return tasks_pool
+
+    def get_inbox_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Haalt alle onvolledige taken op uit Google Tasks en genereert slimme suggesties voor formattering."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            return []
+
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+
+        inbox_tasks = []
+
+        for tl in tasklists:
+            list_id = tl["id"]
+            list_title = tl["title"]
+            is_todo = (list_title.lower() == "to do")
+            raw_tasks = self.client.list_tasks(target_account, list_id)
+            
+            for t in raw_tasks:
+                tit = t.get("title", "").strip()
+                if not tit or t.get("deleted") or tit.startswith("📂 "):
+                    continue
+
+                has_num = bool(re.search(r"^\d+\.", tit)) or bool(re.search(r"-\s*\d+\.", tit))
+                is_missing_parent = (list_title == "05. Wisselende Kapiteins" and not t.get("parent"))
+                
+                issues = []
+                if is_todo:
+                    issues.append("Staat in de 'To do' lijst")
+                if not has_num:
+                    issues.append("Geen volgnummer")
+                if is_missing_parent:
+                    issues.append("Geen submap gekoppeld")
+
+                if issues:
+                    # Compute smart suggestions
+                    clean_core = re.sub(r"^(\d+\.\s*.*?-\s*)?\d+\.\s*", "", tit).strip()
+                    
+                    # Guess target list
+                    suggested_list = list_title
+                    if is_todo:
+                        t_low = tit.lower()
+                        if any(k in t_low for k in ["roy", "zeilboot", "speervissen", "brevet"]):
+                            suggested_list = "01. Roy Persoonlijk"
+                        elif any(k in t_low for k in ["karen", "anticonceptie"]):
+                            suggested_list = "02. Karen Persoonlijk"
+                        elif any(k in t_low for k in ["dave", "rahiena", "gezinshuis", "triade", "rapportage"]):
+                            suggested_list = "03. Kapitein Roy"
+                        elif any(k in t_low for k in ["samen", "overleg", "besluit"]):
+                            suggested_list = "06. Twee Kapiteins (Samen Doen)"
+                        else:
+                            suggested_list = "05. Wisselende Kapiteins"
+
+                    # Guess sublist
+                    suggested_sublist = ""
+                    t_low = (tit + " " + t.get("notes", "")).lower()
+                    if suggested_list == "05. Wisselende Kapiteins":
+                        bouw_kw = ['waterzijde', 'luchtleidingen', 'ha regeling', 'elektra', 'gipsplaten', 'xps', 'laminaat', 'keuken', 'naden', 'rachelwerk', 'luchtkanalen', 'muren', 'voorzetwanden', 'leidingen', 'meterkast', '3d-ontwerp', 'packs', 'omvormer', 'pv-panelen', 'ac/dc', 'mqtt', 'esp ', 'dashboard', 'douche', 'afvoer', 'montageband']
+                        if any(k in t_low for k in bouw_kw):
+                            suggested_sublist = "07. Bouw Woning"
+                        elif any(k in t_low for k in ['maandrapportage', 'evaluatie', 'triade', 'bereikbaarheid', 'gastheerschap', 'beschikbaarheid']):
+                            suggested_sublist = "08. Gezinshuis"
+                        else:
+                            suggested_sublist = "09. Wisselend & Gezin"
+                    elif suggested_list == "03. Kapitein Roy":
+                        suggested_sublist = "01. Gezinshuis"
+                    elif suggested_list == "04. Kapitein Karen":
+                        suggested_sublist = "03. Huishouden & Zorg"
+
+                    inbox_tasks.append({
+                        "id": t["id"],
+                        "current_title": tit,
+                        "clean_title": clean_core,
+                        "current_list_id": list_id,
+                        "current_list_title": list_title,
+                        "notes": t.get("notes", ""),
+                        "due": t.get("due"),
+                        "issues": issues,
+                        "suggested_list": suggested_list,
+                        "suggested_sublist": suggested_sublist
+                    })
+
+        return inbox_tasks
+
+    def format_and_assign_task(
+        self,
+        task_id: str,
+        current_list_id: str,
+        target_list_title: str,
+        sublist_name: Optional[str] = None,
+        custom_number: Optional[int] = None,
+        clean_title: Optional[str] = None,
+        notes: str = "",
+        due: Optional[str] = None,
+        account_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Formateert een onvolledige taak: kent volgnummer toe, voegt optioneel [Sublijst] tag toe, koppelt aan parent folder en verplaatst indien nodig."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            raise ValueError("Geen accounts geconfigureerd")
+
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+        lists_by_title = {l["title"]: l["id"] for l in tasklists}
+
+        dest_list_id = lists_by_title.get(target_list_title)
+        if not dest_list_id:
+            new_l = self.client.create_tasklist(target_account, target_list_title)
+            if new_l:
+                dest_list_id = new_l["id"]
+                lists_by_title[target_list_title] = dest_list_id
+            else:
+                raise ValueError(f"Kon doellijst '{target_list_title}' niet vinden of aanmaken")
+
+        base_title = (clean_title or "").strip()
+        base_title = re.sub(r"^(\d+\.\s*.*?-\s*)?\d+\.\s*", "", base_title).strip()
+        if not base_title:
+            raise ValueError("Taaktitel mag niet leeg zijn")
+
+        clean_sub = (sublist_name or "").replace("📂", "").strip()
+
+        # Deduce or format final notes with sublist tag
+        final_notes = (notes or "").strip()
+        if clean_sub and not clean_sub.lower().startswith("alle"):
+            if re.match(r"^\[.*?\]", final_notes):
+                final_notes = re.sub(r"^\[.*?\]\s*", f"[{clean_sub}] ", final_notes)
+            else:
+                final_notes = f"[{clean_sub}] {final_notes}".strip()
+
+        # Get existing tasks in destination list
+        raw_dest_tasks = self.client.list_tasks(target_account, dest_list_id)
+        parent_folder_id = None
+
+        for t in raw_dest_tasks:
+            if t.get("deleted"):
+                continue
+            t_tit_clean = t.get("title", "").replace("📂", "").strip().lower()
+            if clean_sub and clean_sub.lower() in t_tit_clean:
+                parent_folder_id = t["id"]
+                break
+
+        # Calculate number
+        if custom_number is not None and custom_number > 0:
+            target_num = custom_number
+        else:
+            max_num = 0
+            for t in raw_dest_tasks:
+                t_tit = t.get("title", "").strip()
+                if t.get("deleted") or t_tit.startswith("📂 ") or t["id"] == task_id:
+                    continue
+                sub_match = re.match(r"^(\d+\.\s*.*?-\s*)(\d+)\.", t_tit)
+                if clean_sub and sub_match:
+                    if clean_sub.lower() in sub_match.group(1).lower():
+                        cur_n = int(sub_match.group(2))
+                        if cur_n > max_num:
+                            max_num = cur_n
+                else:
+                    if parent_folder_id and t.get("parent") == parent_folder_id:
+                        m = re.search(r"(\d+)\.", t_tit)
+                        if m and int(m.group(1)) > max_num:
+                            max_num = int(m.group(1))
+                    elif not parent_folder_id:
+                        m = re.match(r"^(\d+)\.", t_tit)
+                        if m and int(m.group(1)) > max_num:
+                            max_num = int(m.group(1))
+
+            target_num = max_num + 1 if max_num > 0 else 1
+
+        sub_prefix = None
+        if clean_sub:
+            for t in raw_dest_tasks:
+                t_tit = t.get("title", "").strip()
+                m_p = re.match(r"^(\d+\.\s*" + re.escape(clean_sub) + r"\s*-\s*)", t_tit)
+                if m_p:
+                    sub_prefix = m_p.group(1)
+                    break
+
+        if sub_prefix:
+            final_title = f"{sub_prefix}{target_num:02d}. {base_title}"
+        else:
+            final_title = f"{target_num:02d}. {base_title}"
+
+        task_body = {
+            "title": final_title,
+            "notes": final_notes,
+            "status": "needsAction"
+        }
+        if due:
+            task_body["due"] = f"{due}T00:00:00.000Z" if len(due) == 10 else due
+        else:
+            task_body["due"] = None
+
+        final_task_id = task_id
+        if dest_list_id != current_list_id:
+            created = self.client.create_task(target_account, dest_list_id, task_body)
+            if not created or "id" not in created:
+                raise ValueError("Kon taak niet aanmaken in doellijst")
+            final_task_id = created["id"]
+            if task_id and current_list_id:
+                try:
+                    self.client.delete_task(target_account, current_list_id, task_id)
+                except Exception:
+                    pass
+        else:
+            updated = self.client.update_task(target_account, dest_list_id, task_id, task_body)
+            if not updated:
+                raise ValueError("Kon taak niet updaten")
+
+        if parent_folder_id:
+            try:
+                self.client.move_task(target_account, dest_list_id, final_task_id, parent_id=parent_folder_id)
+            except Exception as e:
+                self.log(f"Reparenting mislukt: {str(e)}", level="warning")
+
+        self.log(f"Taak '{final_title}' succesvol geformatteerd en opgeslagen in '{target_list_title}'!", level="success")
+        return {
+            "success": True,
+            "task_id": final_task_id,
+            "list_id": dest_list_id,
+            "final_title": final_title,
+            "notes": final_notes
+        }
 
     def get_captain_fixed_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Haalt alleen de taken op uit '03. Kapitein Roy' en '04. Kapitein Karen'."""

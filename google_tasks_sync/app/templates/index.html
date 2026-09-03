@@ -61,6 +61,7 @@
             <input type="text" id="manager-search" placeholder="🔍 Zoek taak..." class="search-input">
             <select id="manager-filter-list" class="filter-select">
               <option value="all">Alle 6 Hoofdlijsten</option>
+              <option value="incomplete" style="color:#d29922; font-weight:bold;">⚠️ Onvolledige Taken (Inbox)</option>
               <option value="01. Roy Persoonlijk">01. Roy Persoonlijk</option>
               <option value="02. Karen Persoonlijk">02. Karen Persoonlijk</option>
               <option value="03. Kapitein Roy">03. Kapitein Roy</option>
@@ -91,6 +92,25 @@
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
               Wijzigingen Syncen naar Google Tasks! (<span id="reassign-pending-count">0</span>)
             </button>
+          </div>
+        </div>
+
+        <!-- Inbox / Onvolledige Taken Alert & Triage Sectie -->
+        <div id="inbox-triage-container" style="display:none; margin-bottom: 18px;">
+          <div class="inbox-card" style="background: linear-gradient(135deg, rgba(210,153,34,0.15), rgba(210,153,34,0.03)); border: 1px solid rgba(210,153,34,0.45); border-radius: 8px; padding: 14px 18px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom: 12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span class="badge" id="inbox-badge-count" style="background:#d29922; color:#0d1117; font-weight:700; font-size:12px; padding:3px 9px; border-radius:12px;">0</span>
+                <h3 style="margin:0; font-size:15px; font-weight:700; color:#f0883e; display:flex; align-items:center; gap:6px;">
+                  📥 Onvolledige Taken (Google Tasks Inbox)
+                </h3>
+              </div>
+              <span style="font-size:12px; color:var(--text-muted);">Toegevoegd via Google Tasks app/assistent: ken direct de juiste hoofdlijst, submap en volgnummer toe.</span>
+            </div>
+            
+            <div id="inbox-tasks-grid" style="display:flex; flex-direction:column; gap:10px;">
+              <!-- Dynamische triage kaarten -->
+            </div>
           </div>
         </div>
 

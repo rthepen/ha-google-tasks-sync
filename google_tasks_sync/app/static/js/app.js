@@ -79,6 +79,25 @@ document.addEventListener('DOMContentLoaded', () => {
     '06. Twee Kapiteins (Samen Doen)'
   ];
 
+  const sublistsByList = {
+    '01. Roy Persoonlijk': ["01. Hobby's & Vrije Tijd", "02. Persoonlijke Zorg"],
+    '02. Karen Persoonlijk': ["01. Persoonlijke Zorg"],
+    '03. Kapitein Roy': ["01. Gezinshuis", "02. Techniek & Beheer"],
+    '04. Kapitein Karen': ["01. Persoonlijke Zorg", "02. Gezinshuis", "03. Huishouden & Zorg"],
+    '05. Wisselende Kapiteins': [
+      "01. Bouw - Verwarming Kelder",
+      "02. Bouw - Studio Dave",
+      "03. Bouw - Studio Rahiena",
+      "04. Bouw - Eigen Studio",
+      "05. Bouw - Thuisaccu",
+      "06. Bouw - Home Assistant",
+      "07. Bouw Woning",
+      "08. Gezinshuis",
+      "09. Wisselend & Gezin"
+    ],
+    '06. Twee Kapiteins (Samen Doen)': ["01. Gezamenlijk (Samen Besluiten)"]
+  };
+
   function extractSublist(notes, listTitle, taskTitle) {
     if (notes) {
       const match = notes.match(/^\[(.*?)\]/);
@@ -137,9 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function loadManagerTasks() {
-    managerTbody.innerHTML = '<tr><td colspan="3" class="loading-cell">Taken ophalen uit alle 5 Google Tasks lijsten...</td></tr>';
+    managerTbody.innerHTML = '<tr><td colspan="3" class="loading-cell">Taken ophalen uit alle Google Tasks lijsten...</td></tr>';
     pendingReassignments = {};
     updatePendingBadge();
+    loadInboxTasks();
 
     try {
       const res = await fetch(`${rootPath}/api/tasks/all`);
@@ -148,7 +168,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const rawTasks = data.tasks || [];
       // Filter out folder header tasks so only real tasks appear in the list
       managerTasks = rawTasks.filter(t => !t.title.startsWith('📂 '));
-      managerStatsTag.textContent = `${managerTasks.length} taken in 5 lijsten`;
+      const incompleteCount = managerTasks.filter(t => t.needs_formatting).length;
+      managerStatsTag.textContent = `${managerTasks.length} taken (${incompleteCount} onvolledig)`;
       
       // Update sublist filter options
       const allSublists = new Set();
@@ -173,7 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const filtered = managerTasks.filter(t => {
       const sub = extractSublist(t.notes, t.current_list_title, t.title);
       const matchesSearch = t.title.toLowerCase().includes(query) || (t.notes || '').toLowerCase().includes(query) || sub.toLowerCase().includes(query);
-      const matchesList = (listFilter === 'all') || (t.current_list_title === listFilter);
+      let matchesList = (listFilter === 'all') || (t.current_list_title === listFilter);
+      if (listFilter === 'incomplete') {
+        matchesList = !!t.needs_formatting;
+      }
       const matchesSub = (subFilter === 'all') || (sub === subFilter);
       return matchesSearch && matchesList && matchesSub;
     });
@@ -226,10 +250,15 @@ document.addEventListener('DOMContentLoaded', () => {
               <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
                 <div>
                   <strong>${t.title}</strong>
+                  ${t.needs_formatting ? `<span class="badge" style="background:rgba(210,153,34,0.18); color:#d29922; border:1px solid rgba(210,153,34,0.4); font-size:10.5px; margin-left:6px;">⚠️ ${t.issues && t.issues.length ? t.issues.join(', ') : 'Onvolledig'}</span>` : ''}
                   ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${cleanNotes}</div>` : ''}
                 </div>
                 <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                   ${t.due ? `<span class="badge" style="font-size:10.5px; background:rgba(210,153,34,0.15); color:#d29922; border-color:rgba(210,153,34,0.4);">📅 ${dueDateFormatted}</span>` : ''}
+                  ${t.needs_formatting ? `
+                  <button class="btn btn-sm btn-outline btn-scroll-to-inbox" data-id="${t.id}" title="Naar inbox gaan om parameters toe te kennen" style="color:#d29922; border-color:rgba(210,153,34,0.4); padding:4px 8px; font-weight:600;">
+                    🪄 Formateren
+                  </button>` : ''}
                   <button class="btn btn-sm btn-outline btn-edit-task" data-id="${t.id}" title="Taak bewerken">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                     Wijzig
@@ -262,6 +291,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const tId = btn.dataset.id;
         const task = managerTasks.find(t => t.id === tId);
         if (task) openEditTaskModal(task);
+      });
+    });
+
+    // Attach scroll to inbox listeners
+    managerTbody.querySelectorAll('.btn-scroll-to-inbox').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tId = btn.dataset.id;
+        const targetCard = document.getElementById(`inbox-card-${tId}`);
+        if (targetCard) {
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetCard.style.outline = '2px solid #d29922';
+          setTimeout(() => { targetCard.style.outline = 'none'; }, 2000);
+        } else {
+          const task = managerTasks.find(t => t.id === tId);
+          if (task) openEditTaskModal(task);
+        }
       });
     });
 
@@ -1504,6 +1549,163 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       showToast('Fout bij verwijderen: ' + err.message, true);
+    }
+  }
+
+  // =========================================================================
+  // 6. INBOX / ONVOLLEDIGE TAKEN (GOOGLE TASKS INBOX) TRIAGE LOGIC
+  // =========================================================================
+  const inboxTriageContainer = document.getElementById('inbox-triage-container');
+  const inboxBadgeCount = document.getElementById('inbox-badge-count');
+  const inboxTasksGrid = document.getElementById('inbox-tasks-grid');
+
+  async function loadInboxTasks() {
+    if (!inboxTriageContainer || !inboxTasksGrid) return;
+    try {
+      const res = await fetch(`${rootPath}/api/tasks/inbox`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const count = data.count || 0;
+      const tasks = data.tasks || [];
+
+      if (count === 0) {
+        inboxTriageContainer.style.display = 'none';
+        return;
+      }
+
+      inboxTriageContainer.style.display = 'block';
+      if (inboxBadgeCount) inboxBadgeCount.textContent = count;
+
+      let cardsHtml = '';
+      tasks.forEach(t => {
+        const issuesHtml = (t.issues || []).map(iss => 
+          `<span class="badge" style="background:rgba(218,54,51,0.15); color:#f85149; border-color:rgba(248,81,73,0.3); font-size:11px;">⚠️ ${iss}</span>`
+        ).join(' ');
+
+        const targetList = t.suggested_list || t.current_list_title || availableLists[0];
+        const sublists = sublistsByList[targetList] || [];
+
+        const listOptions = availableLists.map(l => 
+          `<option value="${l}" ${l === targetList ? 'selected' : ''}>${l}</option>`
+        ).join('');
+
+        const sublistOptions = `<option value="">-- Geen / Automatisch --</option>` + sublists.map(s => 
+          `<option value="${s}" ${s === t.suggested_sublist ? 'selected' : ''}>📂 ${s}</option>`
+        ).join('');
+
+        cardsHtml += `
+          <div class="inbox-item-card" id="inbox-card-${t.id}" data-id="${t.id}" data-current-list-id="${t.current_list_id}" style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <strong style="font-size:14px; color:var(--text-main);">${t.current_title}</strong>
+                <span class="tag" style="font-size:11px;">Huidig: ${t.current_list_title}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                ${issuesHtml}
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1.5fr 1.2fr 1.2fr auto; gap:10px; align-items:end;">
+              <div>
+                <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:3px;">Schone Titel:</label>
+                <input type="text" class="search-input inbox-title-input" value="${t.clean_title.replace(/"/g, '&quot;')}" style="width:100%; font-size:12.5px; padding:6px 10px;">
+              </div>
+              <div>
+                <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:3px;">Doellijst:</label>
+                <select class="filter-select inbox-list-select" style="width:100%; font-size:12.5px; padding:6px 8px;">
+                  ${listOptions}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:3px;">Sub-lijst / Map:</label>
+                <select class="filter-select inbox-sublist-select" style="width:100%; font-size:12.5px; padding:6px 8px;">
+                  ${sublistOptions}
+                </select>
+              </div>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <button class="btn btn-success btn-sm btn-apply-inbox-format" data-id="${t.id}" data-current-list-id="${t.current_list_id}" title="Parameters toekennen en synchroniseren naar Google Tasks" style="white-space:nowrap; padding:6px 10px;">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  Formateren & Syncen 🚀
+                </button>
+                <button class="btn btn-outline btn-sm btn-delete-task" data-id="${t.id}" data-list-id="${t.current_list_id}" data-title="${t.current_title.replace(/"/g, '&quot;')}" style="color:#f85149; border-color:rgba(248,81,73,0.3); padding:6px 8px;" title="Verwijderen">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      inboxTasksGrid.innerHTML = cardsHtml;
+
+      // Event listeners for list changes to dynamically refresh sublist options
+      inboxTasksGrid.querySelectorAll('.inbox-item-card').forEach(card => {
+        const listSelect = card.querySelector('.inbox-list-select');
+        const subSelect = card.querySelector('.inbox-sublist-select');
+        listSelect.addEventListener('change', () => {
+          const chosenList = listSelect.value;
+          const sublists = sublistsByList[chosenList] || [];
+          subSelect.innerHTML = `<option value="">-- Geen / Automatisch --</option>` + sublists.map(s => 
+            `<option value="${s}">📂 ${s}</option>`
+          ).join('');
+        });
+
+        // Apply format button
+        const btnApply = card.querySelector('.btn-apply-inbox-format');
+        btnApply.addEventListener('click', async () => {
+          const taskId = card.dataset.id;
+          const currentListId = card.dataset.currentListId;
+          const titleInput = card.querySelector('.inbox-title-input').value.trim();
+          const targetList = listSelect.value;
+          const sublistName = subSelect.value;
+
+          btnApply.disabled = true;
+          btnApply.textContent = 'Bezig met syncen...';
+          showToast(`Bezig met formateren van '${titleInput}'...`);
+
+          try {
+            const fRes = await fetch(`${rootPath}/api/tasks/format`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                task_id: taskId,
+                current_list_id: currentListId,
+                target_list_title: targetList,
+                sublist_name: sublistName,
+                clean_title: titleInput
+              })
+            });
+            const fData = await fRes.json();
+            if (fData.success) {
+              showToast(`✓ Taak succesvol geformatteerd als '${fData.final_title}'! 🚀`);
+              loadManagerTasks();
+              loadJsonExport();
+            } else {
+              throw new Error(fData.detail || fData.error || 'Fout bij formateren');
+            }
+          } catch (err) {
+            showToast('Fout bij formateren: ' + err.message, true);
+            btnApply.disabled = false;
+            btnApply.textContent = 'Formateren & Syncen 🚀';
+          }
+        });
+
+        // Delete button
+        const btnDel = card.querySelector('.btn-delete-task');
+        if (btnDel) {
+          btnDel.addEventListener('click', async () => {
+            const taskId = btnDel.dataset.id;
+            const listId = btnDel.dataset.listId;
+            const title = btnDel.dataset.title;
+            if (!confirm(`Weet je zeker dat je taak '${title}' wilt verwijderen uit Google Tasks?`)) {
+              return;
+            }
+            await deleteTask(taskId, listId, title);
+          });
+        }
+      });
+    } catch (e) {
+      console.warn('Inbox load failed:', e);
     }
   }
 

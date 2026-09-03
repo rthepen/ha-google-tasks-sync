@@ -199,6 +199,41 @@ async def delete_task(payload: DeleteTaskPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.get("/api/tasks/inbox")
+async def get_inbox():
+    try:
+        tasks = sync_engine.get_inbox_tasks()
+        return {"count": len(tasks), "tasks": tasks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class FormatTaskPayload(BaseModel):
+    task_id: str
+    current_list_id: str
+    target_list_title: str
+    sublist_name: Optional[str] = None
+    custom_number: Optional[int] = None
+    clean_title: Optional[str] = None
+    notes: Optional[str] = ""
+    due: Optional[str] = None
+
+@app.post("/api/tasks/format")
+async def format_task(payload: FormatTaskPayload):
+    try:
+        res = sync_engine.format_and_assign_task(
+            task_id=payload.task_id,
+            current_list_id=payload.current_list_id,
+            target_list_title=payload.target_list_title,
+            sublist_name=payload.sublist_name,
+            custom_number=payload.custom_number,
+            clean_title=payload.clean_title,
+            notes=payload.notes or "",
+            due=payload.due
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 class BatchReassignPayload(BaseModel):
     moves: List[Dict[str, Any]]
 
