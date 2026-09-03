@@ -184,6 +184,21 @@ async def update_task(payload: UpdateTaskPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class DeleteTaskPayload(BaseModel):
+    task_id: str
+    list_id: str
+
+@app.post("/api/tasks/delete")
+async def delete_task(payload: DeleteTaskPayload):
+    try:
+        res = sync_engine.delete_single_task(
+            task_id=payload.task_id,
+            list_id=payload.list_id
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 class BatchReassignPayload(BaseModel):
     moves: List[Dict[str, Any]]
 

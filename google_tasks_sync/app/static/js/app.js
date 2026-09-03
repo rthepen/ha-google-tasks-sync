@@ -234,6 +234,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                     Wijzig
                   </button>
+                  <button class="btn btn-sm btn-outline btn-delete-task" data-id="${t.id}" data-list-id="${t.current_list_id}" data-title="${t.title.replace(/"/g, '&quot;')}" title="Taak direct verwijderen" style="color:#f85149; border-color:rgba(248,81,73,0.3); padding:4px 7px;">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    Verwijder
+                  </button>
                 </div>
               </div>
             </td>
@@ -258,6 +262,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const tId = btn.dataset.id;
         const task = managerTasks.find(t => t.id === tId);
         if (task) openEditTaskModal(task);
+      });
+    });
+
+    // Attach delete button listeners
+    managerTbody.querySelectorAll('.btn-delete-task').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const tId = btn.dataset.id;
+        const listId = btn.dataset.listId;
+        const title = btn.dataset.title;
+        if (!confirm(`Weet je zeker dat je taak '${title}' wilt verwijderen uit Google Tasks?`)) {
+          return;
+        }
+        await deleteTask(tId, listId, title);
       });
     });
 
@@ -1446,6 +1463,48 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       }
     });
+  }
+
+  const btnDeleteEditTask = document.getElementById('btn-delete-edit-task');
+  if (btnDeleteEditTask) {
+    btnDeleteEditTask.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const taskId = editTaskId.value;
+      const listId = editTaskListId.value;
+      const title = (editTaskTitle.value || '').trim();
+      if (!taskId || !listId) return;
+
+      if (!confirm(`Weet je zeker dat je de taak '${title}' definitief wilt verwijderen uit Google Tasks?`)) {
+        return;
+      }
+
+      closeEditTaskModal();
+      await deleteTask(taskId, listId, title);
+    });
+  }
+
+  async function deleteTask(taskId, listId, title) {
+    showToast(`Bezig met verwijderen van '${title}'...`);
+    try {
+      const res = await fetch(`${rootPath}/api/tasks/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task_id: taskId,
+          list_id: listId
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✓ Taak '${title}' succesvol verwijderd! 🗑️`);
+        loadManagerTasks();
+        loadJsonExport();
+      } else {
+        throw new Error(data.detail || data.error || 'Fout bij verwijderen');
+      }
+    } catch (err) {
+      showToast('Fout bij verwijderen: ' + err.message, true);
+    }
   }
 
 });

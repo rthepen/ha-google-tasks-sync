@@ -1,5 +1,6 @@
 import time
 import json
+import re
 from typing import Dict, List, Any, Optional
 from threading import Timer
 from google_client import GoogleTasksClient
@@ -372,39 +373,103 @@ class SyncEngine:
 
         # Format notes with sublist tag if provided
         final_notes = notes.strip()
-        if sublist_name and sublist_name.strip() and not sublist_name.lower().startswith("alle"):
-            clean_sub = sublist_name.replace("📂", "").strip()
-            if not final_notes.startswith("["):
-                final_notes = f"[{clean_sub}] {final_notes}".strip()
+        clean_sub_name = (sublist_name or "").replace("📂", "").strip()
 
-        # Check existing tasks in target list for deduplication
+        # If clean_sub_name is empty, try to deduce from title keywords if in 05. Wisselende Kapiteins
+        if not clean_sub_name and "wisselende kapiteins" in list_title.lower():
+            t_low = title.lower()
+            bouw_kw = ['waterzijde', 'luchtleidingen', 'ha regeling', 'elektra', 'gipsplaten', 'xps', 'laminaat', 'keuken', 'naden', 'rachelwerk', 'luchtkanalen', 'muren', 'voorzetwanden', 'leidingen', 'meterkast', '3d-ontwerp', 'packs', 'omvormer', 'pv-panelen', 'ac/dc', 'mqtt', 'esp ', 'dashboard', 'douche', 'afvoer', 'montageband']
+            if any(k in t_low for k in bouw_kw):
+                clean_sub_name = "Bouw Woning"
+            elif any(k in t_low for k in ['maandrapportage', 'evaluatie', 'triade', 'bereikbaarheid', 'gastheerschap', 'beschikbaarheid']):
+                clean_sub_name = "Gezinshuis"
+            else:
+                clean_sub_name = "Wisselend & Gezin"
+
+        if clean_sub_name and not clean_sub_name.lower().startswith("alle"):
+            if not final_notes.startswith("["):
+                final_notes = f"[{clean_sub_name}] {final_notes}".strip()
+
+        # Check existing tasks in target list for deduplication and parent folder
         raw_existing = self.client.list_tasks(target_account, list_id)
         parent_folder_id = None
         
-        clean_sub_name = (sublist_name or "").replace("📂", "").strip()
         for t in raw_existing:
             if t.get("deleted"):
                 continue
             # Look for matching parent folder header like '📂 Gezinshuis' or '📂 Bouw Woning'
-            if clean_sub_name and t.get("title", "").strip().lower() in (f"📂 {clean_sub_name.lower()}", clean_sub_name.lower()):
+            t_tit_clean = t.get("title", "").replace("📂", "").strip().lower()
+            if clean_sub_name and clean_sub_name.lower() in t_tit_clean:
                 parent_folder_id = t["id"]
-            # Avoid duplicate task
-            if t.get("title", "").strip() == title.strip():
-                # Task already exists, update it instead
+                break
+
+        # Calculate next number if title doesn't already have one
+        clean_title = title.strip()
+        has_num = bool(re.match(r"^\d+\.\s*", clean_title))
+        if not has_num:
+            # Find max number among tasks with similar parent or prefix
+            max_num = 0
+            for t in raw_existing:
+                t_tit = t.get("title", "").strip()
+                if t.get("deleted") or t_tit.startswith("📂 "):
+                    continue
+                # If sublist specified and this task has sub-prefix like "04. Eigen Studio - 09. ...", match prefix
+                sub_match = re.match(r"^(\d+\.\s*.*?-\s*)(\d+)\.", t_tit)
+                if clean_sub_name and sub_match:
+                    if clean_sub_name.lower() in sub_match.group(1).lower():
+                        cur_n = int(sub_match.group(2))
+                        if cur_n > max_num:
+                            max_num = cur_n
+                else:
+                    # If this task belongs to the same parent_folder_id or root
+                    if parent_folder_id and t.get("parent") == parent_folder_id:
+                        m = re.search(r"(\d+)\.", t_tit)
+                        if m:
+                            cur_n = int(m.group(1))
+                            if cur_n > max_num:
+                                max_num = cur_n
+                    elif not parent_folder_id:
+                        m = re.match(r"^(\d+)\.", t_tit)
+                        if m:
+                            cur_n = int(m.group(1))
+                            if cur_n > max_num:
+                                max_num = cur_n
+
+            next_num = max_num + 1 if max_num > 0 else 1
+            
+            # Check for sub-prefix in existing tasks for this sublist
+            sub_prefix = None
+            if clean_sub_name:
+                for t in raw_existing:
+                    t_tit = t.get("title", "").strip()
+                    m_p = re.match(r"^(\d+\.\s*" + re.escape(clean_sub_name) + r"\s*-\s*)", t_tit)
+                    if m_p:
+                        sub_prefix = m_p.group(1)
+                        break
+            if sub_prefix:
+                clean_title = f"{sub_prefix}{next_num:02d}. {clean_title}"
+            else:
+                clean_title = f"{next_num:02d}. {clean_title}"
+
+        # Avoid duplicate task
+        for t in raw_existing:
+            if t.get("deleted"):
+                continue
+            if t.get("title", "").strip() == clean_title or t.get("title", "").strip() == title.strip():
                 update_body = {
-                    "title": title.strip(),
+                    "title": clean_title,
                     "notes": final_notes,
                     "status": "needsAction"
                 }
                 if due:
                     update_body["due"] = f"{due}T00:00:00.000Z" if len(due) == 10 else due
                 self.client.update_task(target_account, list_id, t["id"], update_body)
-                self.log(f"Bestaande taak '{title}' bijgewerkt in '{list_title}'")
-                return {"success": True, "task_id": t["id"], "action": "updated"}
+                self.log(f"Bestaande taak '{clean_title}' bijgewerkt in '{list_title}'")
+                return {"success": True, "task_id": t["id"], "action": "updated", "final_title": clean_title}
 
         # Create new task
         body = {
-            "title": title.strip(),
+            "title": clean_title,
             "notes": final_notes,
             "status": "needsAction"
         }
@@ -421,11 +486,23 @@ class SyncEngine:
         if parent_folder_id:
             try:
                 self.client.move_task(target_account, list_id, new_task_id, parent_id=parent_folder_id)
-            except Exception:
-                pass
+            except Exception as e:
+                self.log(f"Move naar parent folder mislukt: {str(e)}", level="warning")
 
-        self.log(f"Nieuwe taak '{title}' aangemaakt in '{list_title}' (sub: {clean_sub_name or 'Geen'}, deadline: {due or 'Geen'})", level="success")
-        return {"success": True, "task_id": new_task_id, "action": "created"}
+        self.log(f"Nieuwe taak '{clean_title}' aangemaakt in '{list_title}' (sub: {clean_sub_name or 'Geen'}, deadline: {due or 'Geen'})", level="success")
+        return {"success": True, "task_id": new_task_id, "action": "created", "final_title": clean_title}
+
+    def delete_single_task(self, task_id: str, list_id: str, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Verwijdert een taak permanent uit Google Tasks."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            raise ValueError("Geen accounts geconfigureerd")
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        success = self.client.delete_task(target_account, list_id, task_id)
+        if not success:
+            raise ValueError(f"Kon taak '{task_id}' niet verwijderen uit lijst '{list_id}'")
+        self.log(f"Taak '{task_id}' succesvol verwijderd uit lijst '{list_id}'", level="success")
+        return {"success": True, "task_id": task_id}
 
     def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
         """Wijzigt titel, notities, deadline of verplaatst een taak naar een andere lijst."""
