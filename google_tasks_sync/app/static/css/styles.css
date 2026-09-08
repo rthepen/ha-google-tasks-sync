@@ -536,6 +536,19 @@ html, body {
   color: #79c0ff;
   border-color: rgba(88, 166, 255, 0.45);
 }
+.badge-frequency {
+  background: rgba(163, 113, 247, 0.18);
+  color: #d2a8ff;
+  border: 1px solid rgba(163, 113, 247, 0.45);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
 
 /* ================================================= */
 /* VIEW 3: WIZARD KAPITEIN VERDELER STYLES */

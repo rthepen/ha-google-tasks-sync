@@ -67,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const managerFilterList = document.getElementById('manager-filter-list');
   const managerFilterSublist = document.getElementById('manager-filter-sublist');
   const managerFilterTiming = document.getElementById('manager-filter-timing');
+  const managerFilterFrequency = document.getElementById('manager-filter-frequency');
   const btnReloadManager = document.getElementById('btn-reload-manager');
   const btnSaveReassignments = document.getElementById('btn-save-reassignments');
   const pendingCountSpan = document.getElementById('reassign-pending-count');
@@ -167,6 +168,29 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'los';
   }
 
+  function extractFrequency(notes, taskTitle) {
+    if (notes) {
+      const tags = notes.match(/\[(.*?)\]/g);
+      if (tags) {
+        for (const rawTag of tags) {
+          let clean = rawTag.replace(/[\[\]]/g, '').trim();
+          if (clean.startsWith('🔄')) {
+            return clean.replace(/^🔄\s*/, '').trim();
+          }
+          const low = clean.toLowerCase();
+          if (low.startsWith('frequentie:')) {
+            return clean.substring(11).trim();
+          }
+          if (['dagelijks', 'wekelijks', 'maandelijks', 'per kwartaal', 'per half jaar', 'eens per jaar'].includes(low) ||
+              low.startsWith('om de ') || low.startsWith('elke ')) {
+            return clean;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   function extractSublist(notes, listTitle, taskTitle) {
     if (notes) {
       const tags = notes.match(/\[(.*?)\]/g);
@@ -176,6 +200,11 @@ document.addEventListener('DOMContentLoaded', () => {
           const low = clean.toLowerCase();
           if (low.includes('vast in tijd') || low === 'vast' || low.includes('los in tijd') || low === 'los') {
             continue; // Sla timing tag over
+          }
+          if (clean.startsWith('🔄') || low.startsWith('frequentie:') || low.startsWith('freq:') ||
+              ['dagelijks', 'wekelijks', 'maandelijks', 'per kwartaal', 'per half jaar', 'eens per jaar'].includes(low) ||
+              low.startsWith('om de ') || low.startsWith('elke ')) {
+            continue; // Sla frequentie tag over
           }
           // Standardize naming if unnumbered
           if (clean === 'Bouw - Verwarming Kelder' || clean === 'Verwarming Kelder') return "01. Bouw - Verwarming Kelder";
@@ -266,12 +295,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const listFilter = managerFilterList.value;
     const subFilter = managerFilterSublist.value;
     const timingFilter = managerFilterTiming ? managerFilterTiming.value : 'all';
+    const frequencyFilter = managerFilterFrequency ? managerFilterFrequency.value : 'all';
 
     const filtered = managerTasks.filter(t => {
       const sub = extractSublist(t.notes, t.current_list_title, t.title);
       const timing = (pendingReassignments[t.id] && pendingReassignments[t.id].target_timing)
         ? pendingReassignments[t.id].target_timing
         : extractTiming(t.notes, t.title);
+      const freq = (pendingReassignments[t.id] && pendingReassignments[t.id].target_frequency !== undefined)
+        ? pendingReassignments[t.id].target_frequency
+        : extractFrequency(t.notes, t.title);
+
       const matchesSearch = t.title.toLowerCase().includes(query) || (t.notes || '').toLowerCase().includes(query) || sub.toLowerCase().includes(query);
       let matchesList = (listFilter === 'all') || (t.current_list_title === listFilter);
       if (listFilter === 'incomplete') {
@@ -279,7 +313,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const matchesSub = (subFilter === 'all') || (sub === subFilter);
       const matchesTiming = (timingFilter === 'all') || (timing === timingFilter);
-      return matchesSearch && matchesList && matchesSub && matchesTiming;
+
+      let matchesFreq = true;
+      if (frequencyFilter === 'none') {
+        matchesFreq = !freq;
+      } else if (frequencyFilter === 'custom') {
+        const std = ['dagelijks', 'wekelijks', 'maandelijks', 'per kwartaal', 'per half jaar', 'eens per jaar'];
+        matchesFreq = !!freq && !std.includes(freq.toLowerCase());
+      } else if (frequencyFilter !== 'all') {
+        matchesFreq = !!freq && (freq.toLowerCase() === frequencyFilter.toLowerCase());
+      }
+
+      return matchesSearch && matchesList && matchesSub && matchesTiming && matchesFreq;
     });
 
     updateTimingFilterCounts();
@@ -317,11 +362,13 @@ document.addEventListener('DOMContentLoaded', () => {
       grouped[subName].forEach(t => {
         const currentSub = extractSublist(t.notes, t.current_list_title, t.title);
         const currentTiming = extractTiming(t.notes, t.title);
+        const currentFreq = extractFrequency(t.notes, t.title);
         const reassignInfo = pendingReassignments[t.id];
         const isModified = !!reassignInfo;
         const selectedTargetList = isModified ? reassignInfo.target_list_title : t.current_list_title;
         const selectedTargetSub = isModified ? reassignInfo.target_sublist : currentSub;
         const effectiveTiming = (isModified && reassignInfo.target_timing) ? reassignInfo.target_timing : currentTiming;
+        const effectiveFreq = (isModified && reassignInfo.target_frequency !== undefined) ? reassignInfo.target_frequency : currentFreq;
 
         const isListChanged = isModified && (reassignInfo.target_list_title !== t.current_list_title);
         const isSubChanged = isModified && (reassignInfo.target_sublist !== currentSub);
@@ -333,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const sublistOptionsHtml = buildSublistOptions(selectedTargetSub);
 
-        // Schoonmaken van notities zodat sublijst en timing tags niet dubbel tonen
+        // Schoonmaken van notities zodat sublijst, timing en frequentie tags niet dubbel tonen
         const cleanNotes = (t.notes || '').replace(/\[(.*?)\]\s*/g, '').trim();
         const dueDateFormatted = t.due ? new Date(t.due).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
 
@@ -347,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button type="button" class="btn-timing-toggle ${effectiveTiming === 'vast' ? 'badge-timing-vast' : 'badge-timing-los'} ${isTimingChanged ? 'changed' : ''}" data-id="${t.id}" data-timing="${effectiveTiming}" title="Klik om direct te wisselen tussen Vast in tijd (extern bepaald) en Los in tijd (zelf kiezen)">
                       ${effectiveTiming === 'vast' ? '⏰ Vast in tijd' : '⏳ Los in tijd'}
                     </button>
+                    ${effectiveFreq ? `<span class="badge-frequency" title="Minimale frequentie: ${effectiveFreq}">🔄 ${effectiveFreq}</span>` : ''}
                     ${t.needs_formatting ? `<span class="badge" style="background:rgba(210,153,34,0.18); color:#d29922; border:1px solid rgba(210,153,34,0.4); font-size:10.5px;">⚠️ ${t.issues && t.issues.length ? t.issues.join(', ') : 'Onvolledig'}</span>` : ''}
                   </div>
                   ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${cleanNotes}</div>` : ''}
@@ -459,7 +507,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetSub = subSel.value;
       const currentSub = extractSublist(task.notes, task.current_list_title, task.title);
       const currentTiming = extractTiming(task.notes, task.title);
+      const currentFreq = extractFrequency(task.notes, task.title);
       const targetTiming = timingBtn ? timingBtn.dataset.timing : currentTiming;
+      const targetFreq = (pendingReassignments[taskId] && pendingReassignments[taskId].target_frequency !== undefined)
+        ? pendingReassignments[taskId].target_frequency
+        : currentFreq;
 
       const listDiffers = (targetList !== task.current_list_title);
       const subDiffers = (targetSub !== '' && targetSub !== currentSub);
@@ -473,6 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
           target_list_title: targetList,
           target_sublist: targetSub || currentSub,
           target_timing: targetTiming,
+          target_frequency: targetFreq,
           title: task.title,
           notes: task.notes || '',
           status: task.status || 'needsAction'
@@ -559,6 +612,7 @@ document.addEventListener('DOMContentLoaded', () => {
   managerSearch.addEventListener('input', renderManagerTable);
   managerFilterList.addEventListener('change', renderManagerTable);
   managerFilterSublist.addEventListener('change', renderManagerTable);
+  if (managerFilterFrequency) managerFilterFrequency.addEventListener('change', renderManagerTable);
   btnReloadManager.addEventListener('click', loadManagerTasks);
 
   btnSaveReassignments.addEventListener('click', async () => {
@@ -1525,8 +1579,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const addTaskSublist = document.getElementById('add-task-sublist');
   const addTaskCustomSublist = document.getElementById('add-task-custom-sublist');
   const addTaskTiming = document.getElementById('add-task-timing');
+  const addTaskFrequency = document.getElementById('add-task-frequency');
+  const addTaskCustomFrequencyGroup = document.getElementById('add-task-custom-frequency-group');
+  const addTaskCustomFrequency = document.getElementById('add-task-custom-frequency');
   const addTaskDue = document.getElementById('add-task-due');
   const addTaskNotes = document.getElementById('add-task-notes');
+
+  if (addTaskFrequency) {
+    addTaskFrequency.addEventListener('change', () => {
+      if (addTaskFrequency.value === 'custom') {
+        if (addTaskCustomFrequencyGroup) addTaskCustomFrequencyGroup.style.display = 'block';
+        if (addTaskCustomFrequency) addTaskCustomFrequency.focus();
+      } else {
+        if (addTaskCustomFrequencyGroup) addTaskCustomFrequencyGroup.style.display = 'none';
+        if (addTaskCustomFrequency) addTaskCustomFrequency.value = '';
+      }
+    });
+  }
 
   function populateAddTaskSublists() {
     if (!addTaskSublist) return;
@@ -1541,6 +1610,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addTaskDue) addTaskDue.value = '';
     if (addTaskNotes) addTaskNotes.value = '';
     if (addTaskTiming) addTaskTiming.value = 'los';
+    if (addTaskFrequency) addTaskFrequency.value = '';
+    if (addTaskCustomFrequencyGroup) addTaskCustomFrequencyGroup.style.display = 'none';
+    if (addTaskCustomFrequency) addTaskCustomFrequency.value = '';
     if (addTaskList) addTaskList.value = '05. Wisselende Kapiteins';
     addTaskModal.style.display = 'flex';
     if (addTaskTitle) addTaskTitle.focus();
@@ -1567,6 +1639,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const listTitle = addTaskList.value;
       const chosenSublist = (addTaskCustomSublist.value || '').trim() || addTaskSublist.value;
       const timing = addTaskTiming ? addTaskTiming.value : 'los';
+      let chosenFrequency = null;
+      if (addTaskFrequency && addTaskFrequency.value) {
+        if (addTaskFrequency.value === 'custom') {
+          chosenFrequency = (addTaskCustomFrequency ? addTaskCustomFrequency.value : '').trim() || null;
+        } else {
+          chosenFrequency = addTaskFrequency.value;
+        }
+      }
       const notes = (addTaskNotes.value || '').trim();
       const due = addTaskDue ? addTaskDue.value : null;
 
@@ -1584,7 +1664,8 @@ document.addEventListener('DOMContentLoaded', () => {
             sublist_name: chosenSublist,
             notes: notes,
             due: due || null,
-            timing: timing
+            timing: timing,
+            frequency: chosenFrequency
           })
         });
 
@@ -1707,8 +1788,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const editTaskList = document.getElementById('edit-task-list');
   const editTaskSublist = document.getElementById('edit-task-sublist');
   const editTaskTiming = document.getElementById('edit-task-timing');
+  const editTaskFrequency = document.getElementById('edit-task-frequency');
+  const editTaskCustomFrequencyGroup = document.getElementById('edit-task-custom-frequency-group');
+  const editTaskCustomFrequency = document.getElementById('edit-task-custom-frequency');
   const editTaskDue = document.getElementById('edit-task-due');
   const editTaskNotes = document.getElementById('edit-task-notes');
+
+  if (editTaskFrequency) {
+    editTaskFrequency.addEventListener('change', () => {
+      if (editTaskFrequency.value === 'custom') {
+        if (editTaskCustomFrequencyGroup) editTaskCustomFrequencyGroup.style.display = 'block';
+        if (editTaskCustomFrequency) editTaskCustomFrequency.focus();
+      } else {
+        if (editTaskCustomFrequencyGroup) editTaskCustomFrequencyGroup.style.display = 'none';
+        if (editTaskCustomFrequency) editTaskCustomFrequency.value = '';
+      }
+    });
+  }
 
   function openEditTaskModal(task) {
     if (!editTaskModal || !task) return;
@@ -1728,6 +1824,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentTiming = extractTiming(task.notes, task.title);
     if (editTaskTiming) {
       editTaskTiming.value = currentTiming;
+    }
+
+    const currentFreq = extractFrequency(task.notes, task.title);
+    const stdFreqs = ['Dagelijks', 'Wekelijks', 'Maandelijks', 'Per kwartaal', 'Per half jaar', 'Eens per jaar'];
+    if (editTaskFrequency) {
+      if (!currentFreq) {
+        editTaskFrequency.value = '';
+        if (editTaskCustomFrequencyGroup) editTaskCustomFrequencyGroup.style.display = 'none';
+        if (editTaskCustomFrequency) editTaskCustomFrequency.value = '';
+      } else {
+        const matchStd = stdFreqs.find(f => f.toLowerCase() === currentFreq.toLowerCase());
+        if (matchStd) {
+          editTaskFrequency.value = matchStd;
+          if (editTaskCustomFrequencyGroup) editTaskCustomFrequencyGroup.style.display = 'none';
+          if (editTaskCustomFrequency) editTaskCustomFrequency.value = '';
+        } else {
+          editTaskFrequency.value = 'custom';
+          if (editTaskCustomFrequencyGroup) editTaskCustomFrequencyGroup.style.display = 'block';
+          if (editTaskCustomFrequency) editTaskCustomFrequency.value = currentFreq;
+        }
+      }
     }
 
     // Parse date if present: 2026-08-16T00:00:00.000Z -> 2026-08-16
@@ -1763,6 +1880,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetList = editTaskList.value;
       const targetSublist = editTaskSublist ? editTaskSublist.value : null;
       const timing = editTaskTiming ? editTaskTiming.value : 'los';
+      let chosenFrequency = null;
+      if (editTaskFrequency && editTaskFrequency.value) {
+        if (editTaskFrequency.value === 'custom') {
+          chosenFrequency = (editTaskCustomFrequency ? editTaskCustomFrequency.value : '').trim() || null;
+        } else {
+          chosenFrequency = editTaskFrequency.value;
+        }
+      }
       const notes = (editTaskNotes.value || '').trim();
       const due = editTaskDue.value ? editTaskDue.value : null;
 
@@ -1782,7 +1907,8 @@ document.addEventListener('DOMContentLoaded', () => {
             due: due,
             target_list_title: targetList,
             sublist_name: targetSublist,
-            timing: timing
+            timing: timing,
+            frequency: chosenFrequency
           })
         });
 

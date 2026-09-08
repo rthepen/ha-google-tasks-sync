@@ -147,6 +147,7 @@ class CreateTaskPayload(BaseModel):
     notes: Optional[str] = ""
     due: Optional[str] = None
     timing: Optional[str] = "los"
+    frequency: Optional[str] = None
 
 @app.post("/api/tasks/create")
 async def create_task(payload: CreateTaskPayload):
@@ -157,7 +158,8 @@ async def create_task(payload: CreateTaskPayload):
             sublist_name=payload.sublist_name,
             notes=payload.notes or "",
             due=payload.due,
-            timing=payload.timing
+            timing=payload.timing,
+            frequency=payload.frequency
         )
         return res
     except Exception as e:
@@ -191,6 +193,7 @@ class UpdateTaskPayload(BaseModel):
     target_list_title: Optional[str] = None
     sublist_name: Optional[str] = None
     timing: Optional[str] = None
+    frequency: Optional[str] = None
 
 @app.post("/api/tasks/update")
 async def update_task(payload: UpdateTaskPayload):
@@ -203,7 +206,8 @@ async def update_task(payload: UpdateTaskPayload):
             due=payload.due,
             target_list_title=payload.target_list_title,
             sublist_name=payload.sublist_name,
-            timing=payload.timing
+            timing=payload.timing,
+            frequency=payload.frequency
         )
         return res
     except Exception as e:

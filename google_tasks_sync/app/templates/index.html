@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Google Tasks JSON & Kapitein Verdeler | Home Assistant</title>
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.29">
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.30">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -105,6 +105,17 @@
               <option value="all">⏱️ Alle Timings (Vast & Los)</option>
               <option value="vast">⏰ Vast in tijd (Extern bepaald)</option>
               <option value="los">⏳ Los in tijd (Zelf kiezen)</option>
+            </select>
+            <select id="manager-filter-frequency" class="filter-select" title="Filter op minimale frequentie">
+              <option value="all">🔄 Alle Frequenties</option>
+              <option value="Dagelijks">Dagelijks</option>
+              <option value="Wekelijks">Wekelijks</option>
+              <option value="Maandelijks">Maandelijks</option>
+              <option value="Per kwartaal">Per kwartaal</option>
+              <option value="Per half jaar">Per half jaar</option>
+              <option value="Eens per jaar">Eens per jaar</option>
+              <option value="custom">✍️ Aangepast / Custom</option>
+              <option value="none">Zonder frequentie</option>
             </select>
           </div>
           <div class="timing-filter-pills" id="timing-filter-pills">
@@ -468,6 +479,29 @@
 
           <div class="form-group">
             <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+              Minimale Frequentie (Hoe vaak taak minimaal moet gebeuren):
+            </label>
+            <select id="add-task-frequency" class="filter-select" style="width:100%; padding:8px 10px; font-size:13px;">
+              <option value="" selected>Geen / Eenmalig</option>
+              <option value="Dagelijks">Dagelijks</option>
+              <option value="Wekelijks">Wekelijks</option>
+              <option value="Maandelijks">Maandelijks</option>
+              <option value="Per kwartaal">Per kwartaal</option>
+              <option value="Per half jaar">Per half jaar</option>
+              <option value="Eens per jaar">Eens per jaar</option>
+              <option value="custom">✍️ Aangepast (bijv. Om de 6 weken)...</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="add-task-custom-frequency-group" style="display:none;">
+            <label style="font-size:12px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-muted);">
+              Vul aangepaste frequentie in:
+            </label>
+            <input type="text" id="add-task-custom-frequency" placeholder="bijv. Om de 6 weken, Elke 2 weken, etc." class="search-input" style="width:100%; font-size:13px; padding:7px 12px;">
+          </div>
+
+          <div class="form-group">
+            <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
               Deadline / Einddatum (Optioneel):
             </label>
             <input type="date" id="add-task-due" class="search-input" style="width:100%; font-size:13px; padding:7px 12px; color-scheme:dark;">
@@ -599,6 +633,29 @@
 
           <div class="form-group">
             <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+              Minimale Frequentie (Hoe vaak taak minimaal moet gebeuren):
+            </label>
+            <select id="edit-task-frequency" class="filter-select" style="width:100%; padding:8px 10px; font-size:13px;">
+              <option value="">Geen / Eenmalig</option>
+              <option value="Dagelijks">Dagelijks</option>
+              <option value="Wekelijks">Wekelijks</option>
+              <option value="Maandelijks">Maandelijks</option>
+              <option value="Per kwartaal">Per kwartaal</option>
+              <option value="Per half jaar">Per half jaar</option>
+              <option value="Eens per jaar">Eens per jaar</option>
+              <option value="custom">✍️ Aangepast (bijv. Om de 6 weken)...</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="edit-task-custom-frequency-group" style="display:none;">
+            <label style="font-size:12px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-muted);">
+              Vul aangepaste frequentie in:
+            </label>
+            <input type="text" id="edit-task-custom-frequency" placeholder="bijv. Om de 6 weken, Elke 2 weken, etc." class="search-input" style="width:100%; font-size:13px; padding:7px 12px;">
+          </div>
+
+          <div class="form-group">
+            <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
               Deadline / Einddatum:
             </label>
             <input type="date" id="edit-task-due" class="search-input" style="width:100%; font-size:13px; padding:7px 12px; color-scheme:dark;">
@@ -713,7 +770,7 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.29">
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.29"></script>
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.30">
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.30"></script>
 </body>
 </html>

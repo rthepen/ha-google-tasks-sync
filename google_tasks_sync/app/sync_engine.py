@@ -583,15 +583,16 @@ class SyncEngine:
         tasks_pool.sort(key=lambda x: x.get("title", ""))
         return tasks_pool
 
-    def format_task_notes(self, notes: str = "", sublist: Optional[str] = None, timing: Optional[str] = None) -> str:
-        """Formatteert notities met gestandaardiseerde tags voor sublijst en timing [Vast in tijd] of [Los in tijd]."""
+    def format_task_notes(self, notes: str = "", sublist: Optional[str] = None, timing: Optional[str] = None, frequency: Optional[str] = None) -> str:
+        """Formatteert notities met gestandaardiseerde tags voor sublijst, timing [Vast in tijd]/[Los in tijd], en minimale frequentie [🔄 Wekelijks]."""
         import re
         clean_notes = (notes or "").strip()
         
         existing_sub = None
         existing_timing = None
+        existing_freq = None
         
-        # Parse alle leidende [...] tags e.g. [01. Bouw - Verwarming] [Vast in tijd]
+        # Parse alle leidende [...] tags e.g. [01. Bouw - Verwarming] [Vast in tijd] [🔄 Wekelijks]
         while True:
             m = re.match(r"^\[(.*?)\]\s*", clean_notes)
             if not m:
@@ -602,12 +603,18 @@ class SyncEngine:
                 existing_timing = "vast"
             elif t_low in ["los in tijd", "los", "⏳ los in tijd"]:
                 existing_timing = "los"
+            elif tag_content.startswith("🔄") or t_low.startswith("frequentie:") or t_low in ["dagelijks", "wekelijks", "maandelijks", "per kwartaal", "per half jaar", "eens per jaar"] or t_low.startswith("om de ") or t_low.startswith("elke "):
+                clean_f = tag_content.replace("🔄", "").strip()
+                if clean_f.lower().startswith("frequentie:"):
+                    clean_f = clean_f[11:].strip()
+                existing_freq = clean_f
             else:
                 existing_sub = tag_content
             clean_notes = clean_notes[m.end():].strip()
             
         final_sub = sublist if sublist is not None else existing_sub
         final_timing = timing if timing is not None else existing_timing
+        final_freq = frequency if frequency is not None else existing_freq
         
         clean_sub = (final_sub or "").replace("📂", "").strip()
         if clean_sub.lower().startswith("alle"):
@@ -622,6 +629,10 @@ class SyncEngine:
                 parts.append("[Vast in tijd]")
             elif "los" in ft_low:
                 parts.append("[Los in tijd]")
+        if final_freq:
+            cf = final_freq.replace("🔄", "").strip()
+            if cf and cf.lower() not in ["geen", "eenmalig", "geen / eenmalig", "none"]:
+                parts.append(f"[🔄 {cf}]")
                 
         tag_str = " ".join(parts)
         if tag_str and clean_notes:
@@ -694,8 +705,8 @@ class SyncEngine:
             "folder_task_id": folder_task_id
         }
         
-    def create_single_task(self, title: str, list_title: str, sublist_name: Optional[str] = None, notes: str = "", due: Optional[str] = None, timing: Optional[str] = "los", account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Maakt een nieuwe taak aan in de opgegeven hoofdlijst, eventueel gekoppeld aan een sublijst map en met timing eigenschap."""
+    def create_single_task(self, title: str, list_title: str, sublist_name: Optional[str] = None, notes: str = "", due: Optional[str] = None, timing: Optional[str] = "los", frequency: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Maakt een nieuwe taak aan in de opgegeven hoofdlijst, eventueel gekoppeld aan een sublijst map, timing en frequentie eigenschap."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts geconfigureerd")
@@ -726,8 +737,8 @@ class SyncEngine:
             else:
                 clean_sub_name = "Wisselend & Gezin"
 
-        # Formatteer notities met sublijst en timing tags
-        final_notes = self.format_task_notes(notes=notes, sublist=clean_sub_name, timing=timing)
+        # Formatteer notities met sublijst, timing en frequentie tags
+        final_notes = self.format_task_notes(notes=notes, sublist=clean_sub_name, timing=timing, frequency=frequency)
 
         # Check existing tasks in target list for deduplication and parent folder
         raw_existing = self.client.list_tasks(target_account, list_id)
@@ -844,8 +855,8 @@ class SyncEngine:
         self.log(f"Taak '{task_id}' succesvol verwijderd uit lijst '{list_id}'", level="success")
         return {"success": True, "task_id": task_id}
 
-    def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, sublist_name: Optional[str] = None, timing: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Wijzigt titel, notities, deadline, timing of verplaatst een taak naar een andere lijst of sublijst."""
+    def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, sublist_name: Optional[str] = None, timing: Optional[str] = None, frequency: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Wijzigt titel, notities, deadline, timing, frequentie of verplaatst een taak naar een andere lijst of sublijst."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts geconfigureerd")
@@ -856,7 +867,7 @@ class SyncEngine:
         lists_by_id = {l["id"]: l["title"] for l in tasklists}
 
         clean_sub = (sublist_name or "").replace("📂", "").strip()
-        final_notes = self.format_task_notes(notes=notes, sublist=clean_sub if clean_sub else None, timing=timing)
+        final_notes = self.format_task_notes(notes=notes, sublist=clean_sub if clean_sub else None, timing=timing, frequency=frequency)
 
         dest_list_id = lists_by_title.get(target_list_title) if target_list_title else list_id
         effective_dest_title = target_list_title or lists_by_id.get(dest_list_id, "Huidige Lijst")
@@ -1003,13 +1014,8 @@ class SyncEngine:
             cur_list_id = m.get("current_list_id")
             target_title = m.get("target_list_title")
             target_sub = m.get("target_sublist")
-            t_title = (m.get("title") or "").strip()
-            t_notes = m.get("notes", "")
-            t_status = m.get("status", "needsAction")
-
-            target_title = m.get("target_list_title")
-            target_sub = m.get("target_sublist")
             target_timing = m.get("target_timing")
+            target_frequency = m.get("target_frequency")
             t_title = (m.get("title") or "").strip()
             t_notes = m.get("notes", "")
             t_status = m.get("status", "needsAction")
@@ -1024,7 +1030,7 @@ class SyncEngine:
                     lists_by_id[target_list_id] = target_title
 
             clean_sub = (target_sub or "").replace("📂", "").strip()
-            final_notes = self.format_task_notes(notes=t_notes, sublist=clean_sub if clean_sub else None, timing=target_timing)
+            final_notes = self.format_task_notes(notes=t_notes, sublist=clean_sub if clean_sub else None, timing=target_timing, frequency=target_frequency)
 
             # Find matching parent folder in target list if exists
             parent_folder_id = None
