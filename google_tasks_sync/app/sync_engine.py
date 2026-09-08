@@ -582,6 +582,69 @@ class SyncEngine:
         
         tasks_pool.sort(key=lambda x: x.get("title", ""))
         return tasks_pool
+
+    def create_new_sublist(self, name: str, list_title: str, category: Optional[str] = None, create_folder_task: bool = True, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Maakt een nieuwe sublijst aan en optioneel een '📂 [Naam]' header taak in Google Tasks."""
+        import re
+        accounts = self.client.get_accounts()
+        if not accounts:
+            raise ValueError("Geen accounts geconfigureerd")
+        
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+        lists_by_title = {l["title"]: l["id"] for l in tasklists}
+
+        list_id = lists_by_title.get(list_title)
+        if not list_id:
+            new_l = self.client.create_tasklist(target_account, list_title)
+            if new_l:
+                list_id = new_l["id"]
+            else:
+                raise ValueError(f"Kon lijst '{list_title}' niet vinden")
+
+        clean_name = name.replace("📂", "").strip()
+        if not clean_name:
+            raise ValueError("Sub-lijst naam mag niet leeg zijn")
+
+        # Bepaal volgnummer indien niet ingevoerd (bijv. 10. Bouw - Tuin)
+        if not re.match(r"^\d+\.", clean_name):
+            raw_tasks = self.client.list_tasks(target_account, list_id)
+            max_num = 0
+            for t in raw_tasks:
+                tit = t.get("title", "").strip()
+                if tit.startswith("📂 "):
+                    m = re.match(r"^📂\s*(\d+)\.", tit)
+                    if m and int(m.group(1)) > max_num:
+                        max_num = int(m.group(1))
+            next_num = max_num + 1 if max_num > 0 else 1
+            clean_name = f"{next_num:02d}. {clean_name}"
+
+        folder_task_id = None
+        if create_folder_task:
+            folder_title = f"📂 {clean_name}"
+            raw_tasks = self.client.list_tasks(target_account, list_id)
+            for t in raw_tasks:
+                if t.get("title", "").strip() == folder_title:
+                    folder_task_id = t["id"]
+                    break
+            
+            if not folder_task_id:
+                created = self.client.create_task(target_account, list_id, {
+                    "title": folder_title,
+                    "notes": f"Sub-lijst map voor '{clean_name}'",
+                    "status": "needsAction"
+                })
+                if created and "id" in created:
+                    folder_task_id = created["id"]
+                self.log(f"Mapkop '{folder_title}' aangemaakt in Google Tasks lijst '{list_title}'", level="success")
+
+        return {
+            "success": True,
+            "sublist_name": clean_name,
+            "list_title": list_title,
+            "category": category or "Bouw Projecten",
+            "folder_task_id": folder_task_id
+        }
         
     def create_single_task(self, title: str, list_title: str, sublist_name: Optional[str] = None, notes: str = "", due: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
         """Maakt een nieuwe taak aan in de opgegeven hoofdlijst, eventueel gekoppeld aan een sublijst map."""

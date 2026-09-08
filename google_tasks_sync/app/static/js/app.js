@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </select>
             </td>
             <td>
-              <select class="task-sublist-select ${isSubChanged ? 'changed' : ''}" data-id="${t.id}" title="Selecteer een nieuwe sub-lijst">
+              <select class="task-sublist-select ${isSubChanged ? 'changed' : ''}" data-id="${t.id}" title="Verander sub-lijst">
                 ${sublistOptionsHtml}
               </select>
             </td>
@@ -1511,6 +1511,103 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSubmitAddTask.innerHTML = `
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
           Taak Toevoegen aan Google Tasks 🚀
+        `;
+      }
+    });
+  }
+
+  // =========================================================================
+  // 4B. NIEUWE SUB-LIJST TOEVOEGEN MODAL LOGIC
+  // =========================================================================
+  const btnOpenAddSublistModal = document.getElementById('btn-open-add-sublist-modal');
+  const addSublistModal = document.getElementById('add-sublist-modal');
+  const btnCloseAddSublistModal = document.getElementById('btn-close-add-sublist-modal');
+  const btnCancelAddSublist = document.getElementById('btn-cancel-add-sublist');
+  const btnSubmitAddSublist = document.getElementById('btn-submit-add-sublist');
+
+  const addSublistName = document.getElementById('add-sublist-name');
+  const addSublistParentList = document.getElementById('add-sublist-parent-list');
+  const addSublistCategory = document.getElementById('add-sublist-category');
+  const addSublistCreateFolder = document.getElementById('add-sublist-create-folder');
+
+  function openAddSublistModal() {
+    if (!addSublistModal) return;
+    if (addSublistName) addSublistName.value = '';
+    if (addSublistParentList) addSublistParentList.value = '05. Wisselende Kapiteins';
+    if (addSublistCategory) addSublistCategory.value = 'Bouw Projecten';
+    if (addSublistCreateFolder) addSublistCreateFolder.checked = true;
+    addSublistModal.style.display = 'flex';
+    if (addSublistName) addSublistName.focus();
+  }
+
+  function closeAddSublistModal() {
+    if (addSublistModal) addSublistModal.style.display = 'none';
+  }
+
+  if (btnOpenAddSublistModal) btnOpenAddSublistModal.addEventListener('click', openAddSublistModal);
+  if (btnCloseAddSublistModal) btnCloseAddSublistModal.addEventListener('click', closeAddSublistModal);
+  if (btnCancelAddSublist) btnCancelAddSublist.addEventListener('click', closeAddSublistModal);
+
+  if (btnSubmitAddSublist) {
+    btnSubmitAddSublist.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const rawName = (addSublistName.value || '').trim();
+      if (!rawName) {
+        showToast('Vul een sub-lijst naam in!', true);
+        if (addSublistName) addSublistName.focus();
+        return;
+      }
+
+      const listTitle = addSublistParentList.value;
+      const category = addSublistCategory.value;
+      const createFolder = addSublistCreateFolder ? addSublistCreateFolder.checked : true;
+
+      btnSubmitAddSublist.disabled = true;
+      btnSubmitAddSublist.textContent = 'Bezig met aanmaken...';
+      showToast('Nieuwe sub-lijst aanmaken...');
+
+      try {
+        const res = await fetch(`${rootPath}/api/sublists/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: rawName,
+            list_title: listTitle,
+            category: category,
+            create_folder_task: createFolder
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          const newSubName = data.sublist_name;
+
+          // Register in local lookup structures
+          if (!sublistsByList[listTitle]) sublistsByList[listTitle] = [];
+          if (!sublistsByList[listTitle].includes(newSubName)) {
+            sublistsByList[listTitle].push(newSubName);
+          }
+
+          const catKey = category || 'Bouw Projecten';
+          if (!allSublistCategories[catKey]) allSublistCategories[catKey] = [];
+          if (!allSublistCategories[catKey].includes(newSubName)) {
+            allSublistCategories[catKey].push(newSubName);
+          }
+
+          showToast(`✓ Sub-lijst '${newSubName}' succesvol toegevoegd! 🎉`);
+          closeAddSublistModal();
+          await loadManagerTasks();
+          loadJsonExport();
+        } else {
+          throw new Error(data.detail || data.error || 'Fout bij aanmaken');
+        }
+      } catch (err) {
+        showToast('Fout: ' + err.message, true);
+      } finally {
+        btnSubmitAddSublist.disabled = false;
+        btnSubmitAddSublist.innerHTML = `
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          Sub-lijst Aanmaken 🚀
         `;
       }
     });

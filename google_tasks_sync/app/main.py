@@ -161,6 +161,25 @@ async def create_task(payload: CreateTaskPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class CreateSublistPayload(BaseModel):
+    name: str
+    list_title: str
+    category: Optional[str] = "Bouw Projecten"
+    create_folder_task: Optional[bool] = True
+
+@app.post("/api/sublists/create")
+async def create_sublist(payload: CreateSublistPayload):
+    try:
+        res = sync_engine.create_new_sublist(
+            name=payload.name,
+            list_title=payload.list_title,
+            category=payload.category,
+            create_folder_task=payload.create_folder_task
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 class UpdateTaskPayload(BaseModel):
     task_id: str
     list_id: str
