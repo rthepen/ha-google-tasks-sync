@@ -286,6 +286,18 @@ document.addEventListener('DOMContentLoaded', () => {
     return "10. Algemeen";
   }
 
+  function extractCleanTitle(title) {
+    if (!title) return '';
+    let clean = title.trim();
+    // Strip category prefix with number like "01. Bouw - Verwarming Kelder - 01. Waterzijde..."
+    clean = clean.replace(/^\d+\.\s*.*?[-\–]\s*\d+\.\s*/, '').trim();
+    // Strip category prefix like "Bouw - Verwarming Kelder - ..."
+    clean = clean.replace(/^\d+\.\s*.*?[-\–]\s*/, '').trim();
+    // Strip leading number like "05. ", "5. ", "05) "
+    clean = clean.replace(/^\d+[\.\)]\s*/, '').trim();
+    return clean;
+  }
+
   function naturalSort(a, b) {
     return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
   }
@@ -301,8 +313,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) throw new Error('Kon taken niet ophalen');
       const data = await res.json();
       const rawTasks = data.tasks || [];
-      // Filter out folder header tasks so only real tasks appear in the list
-      managerTasks = rawTasks.filter(t => !t.title.startsWith('📂 '));
+      // Filter out folder header tasks so only real tasks appear in the list and strip numbers from titles
+      managerTasks = rawTasks.filter(t => !t.title.startsWith('📂 ')).map(t => {
+        t.title = extractCleanTitle(t.title);
+        return t;
+      });
       const incompleteCount = managerTasks.filter(t => t.needs_formatting).length;
       const completedCount = managerTasks.filter(t => t.status === 'completed').length;
       const openCount = managerTasks.length - completedCount;
@@ -385,8 +400,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let html = '';
     Object.keys(grouped).sort(naturalSort).forEach(subName => {
-      // Sort tasks inside category naturally
-      grouped[subName].sort((a, b) => naturalSort(a.title, b.title));
+      // Sort tasks inside category by position in list, then natural sort
+      grouped[subName].sort((a, b) => (a.position || 0) - (b.position || 0) || naturalSort(a.title, b.title));
       const count = grouped[subName].length;
       html += `
         <tr class="sublist-header-row">
@@ -436,18 +451,29 @@ document.addEventListener('DOMContentLoaded', () => {
         // Schoonmaken van notities zodat categorie, timing en frequentie tags niet dubbel tonen
         const cleanNotes = (t.notes || '').replace(/\[(.*?)\]\s*/g, '').trim();
         const dueDateFormatted = t.due ? new Date(t.due).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
+        const cleanTitle = extractCleanTitle(t.title);
+
+        // Positie opties in de betreffende Google Tasks lijst
+        const maxPos = Math.max(t.total_in_list || 1, managerTasks.filter(x => x.current_list_id === t.current_list_id).length || 1, t.position || 1);
+        let posOptionsHtml = '';
+        for (let p = 1; p <= maxPos; p++) {
+          posOptionsHtml += `<option value="${p}" ${p === (t.position || 1) ? 'selected' : ''}>#${p}</option>`;
+        }
 
         html += `
           <tr class="${isModified ? 'modified' : ''} ${isCompleted ? 'task-row-completed' : ''}" data-id="${t.id}">
             <td style="padding-left:20px;">
               <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                <div style="display:flex; align-items:flex-start; gap:10px; flex:1;">
+                <div style="display:flex; align-items:center; gap:8px; flex:1;">
                   <button type="button" class="btn-task-check ${isCompleted ? 'checked' : ''}" data-id="${t.id}" data-list-id="${t.current_list_id}" data-status="${t.status || 'needsAction'}" title="${isCompleted ? 'Klik om taak weer te openen (onvoltooid)' : 'Klik om taak als voltooid te markeren (net als in Google Tasks)'}">
                     ${isCompleted ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:12px;height:12px;"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
                   </button>
+                  <select class="task-position-select" data-id="${t.id}" data-list-id="${t.current_list_id}" data-position="${t.position || 1}" title="Positie in Google Tasks (${t.current_list_title}) wijzigen">
+                    ${posOptionsHtml}
+                  </select>
                   <div style="flex:1;">
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                      <strong class="${isCompleted ? 'task-title-completed' : ''}">${t.title}</strong>
+                      <strong class="${isCompleted ? 'task-title-completed' : ''}">${cleanTitle}</strong>
                       ${completedBadgeHtml}
                       <button type="button" class="btn-timing-toggle ${effectiveTiming === 'vast' ? 'badge-timing-vast' : 'badge-timing-los'} ${isTimingChanged ? 'changed' : ''}" data-id="${t.id}" data-timing="${effectiveTiming}" title="Klik om direct te wisselen tussen Vast in tijd (extern bepaald) en Los in tijd (zelf kiezen)">
                         ${effectiveTiming === 'vast' ? '⏰ Vast in tijd' : '⏳ Los in tijd'}
@@ -552,6 +578,64 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast('Fout bij wijzigen status: ' + err.message, true);
         } finally {
           btn.classList.remove('loading');
+        }
+      });
+    });
+
+    // Attach position change listeners (verandert positie in Google Tasks en herrangschikt taken)
+    managerTbody.querySelectorAll('.task-position-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const taskId = select.dataset.id;
+        const listId = select.dataset.listId;
+        const oldPos = parseInt(select.dataset.position, 10) || 1;
+        const newPos = parseInt(select.value, 10);
+
+        if (newPos === oldPos) return;
+
+        select.classList.add('loading');
+        try {
+          const res = await fetch(`${rootPath}/api/tasks/move-position`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              task_id: taskId,
+              list_id: listId,
+              new_position: newPos
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.detail || data.error || 'Kon positie niet wijzigen');
+          }
+
+          // Automatisch andere taken in dezelfde lijst herrangschikken in lokaal geheugen
+          managerTasks.forEach(t => {
+            if (t.current_list_id === listId) {
+              const p = t.position || 1;
+              if (t.id === taskId) {
+                t.position = newPos;
+              } else if (newPos < oldPos) {
+                // Naar boven geschoven: tussenliggende taken schuiven 1 omlaag (+1)
+                if (p >= newPos && p < oldPos) {
+                  t.position = p + 1;
+                }
+              } else if (newPos > oldPos) {
+                // Naar beneden geschoven: tussenliggende taken schuiven 1 omhoog (-1)
+                if (p <= newPos && p > oldPos) {
+                  t.position = p - 1;
+                }
+              }
+            }
+          });
+
+          showToast(`✓ Taak verplaatst naar positie #${newPos}. Taken automatisch herrangschikt!`);
+          renderManagerTable();
+        } catch (err) {
+          showToast('Fout bij wijzigen positie: ' + err.message, true);
+          select.value = oldPos;
+        } finally {
+          select.classList.remove('loading');
         }
       });
     });
@@ -1938,7 +2022,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!editTaskModal || !task) return;
     editTaskId.value = task.id;
     editTaskListId.value = task.current_list_id;
-    editTaskTitle.value = task.title;
+    editTaskTitle.value = extractCleanTitle(task.title);
     editTaskList.value = task.current_list_title;
     // Schoon notities van tags
     editTaskNotes.value = task.notes ? task.notes.replace(/\[(.*?)\]\s*/g, '').trim() : '';

@@ -73,13 +73,18 @@ class SyncEngine:
         except Exception as e:
             print(f"Kon completion history niet opslaan: {e}")
 
-    def _normalize_title_key(self, title: str) -> str:
-        """Normaliseert taaktitels voor robuuste historie-koppeling (stript volgnummers en prefixes)."""
+    def clean_task_title(self, title: str) -> str:
+        """Stript hardcoded volgnummers (zoals '05. ', '01. Bouw - Verwarming - 02. ') uit de taaktitel."""
         clean = (title or "").strip()
         clean = clean.replace("📂", "").strip()
-        clean = re.sub(r"^\d+\.\s*.*?-\s*", "", clean).strip()
-        clean = re.sub(r"^\d+\.\s*", "", clean).strip()
-        return clean.lower()
+        clean = re.sub(r"^\d+\.\s*.*?[-\–]\s*\d+\.\s*", "", clean).strip()
+        clean = re.sub(r"^\d+\.\s*.*?[-\–]\s*", "", clean).strip()
+        clean = re.sub(r"^\d+[\.\)]\s*", "", clean).strip()
+        return clean or (title or "").strip()
+
+    def _normalize_title_key(self, title: str) -> str:
+        """Normaliseert taaktitels voor robuuste historie-koppeling (stript volgnummers en prefixes)."""
+        return self.clean_task_title(title).lower()
 
     def record_task_completion(self, task_id: str, title: str, completed_at: Optional[str] = None, frequency: Optional[str] = None):
         """Registreert het tijdstip waarop een taak is voltooid."""
@@ -295,6 +300,83 @@ class SyncEngine:
             "reset_count": len(reset_tasks),
             "reset_tasks": reset_tasks
         }
+
+    def move_task_position(self, task_id: str, list_id: str, new_position: int, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Verplaatst een taak naar een nieuwe positie in de Google Tasks lijst en herrangschikt de overige taken."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            raise ValueError("Geen accounts geconfigureerd")
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+
+        raw_tasks = self.client.list_tasks(target_account, list_id)
+        active_tasks = [t for t in raw_tasks if not t.get("deleted") and not t.get("title", "").startswith("📂 ")]
+        active_tasks.sort(key=lambda x: x.get("position", ""))
+
+        cur_idx = -1
+        for idx, t in enumerate(active_tasks):
+            if t.get("id") == task_id:
+                cur_idx = idx
+                break
+
+        if cur_idx == -1:
+            raise ValueError(f"Taak '{task_id}' niet gevonden in lijst '{list_id}'")
+
+        target_idx = max(0, min(new_position - 1, len(active_tasks) - 1))
+        if cur_idx == target_idx:
+            return {"success": True, "position": new_position}
+
+        moved_task = active_tasks.pop(cur_idx)
+        active_tasks.insert(target_idx, moved_task)
+
+        # In Google Tasks API:
+        # Als target_idx == 0: verplaats naar begin van lijst (previous=None)
+        # Anders: verplaats direct achter de taak op target_idx - 1
+        previous_id = None
+        if target_idx > 0:
+            previous_id = active_tasks[target_idx - 1]["id"]
+
+        success = self.client.move_task(target_account, list_id, task_id, previous_id=previous_id)
+        clean_tit = self.clean_task_title(moved_task.get("title", ""))
+        self.log(f"Taak '{clean_tit}' verplaatst naar positie #{new_position}. Overige taken in de lijst automatisch opnieuw gerangschikt.", level="success")
+
+        # Map nieuwe posities
+        new_positions = {t["id"]: i + 1 for i, t in enumerate(active_tasks)}
+        return {
+            "success": True,
+            "task_id": task_id,
+            "new_position": new_position,
+            "positions": new_positions
+        }
+
+    def clean_all_task_titles(self, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Stript alle hardcoded volgnummers (bijv. '05. ') uit titels in Google Tasks."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            return {"cleaned_count": 0}
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+        cleaned_count = 0
+
+        for tl in tasklists:
+            list_id = tl["id"]
+            raw_tasks = self.client.list_tasks(target_account, list_id)
+            for t in raw_tasks:
+                if t.get("deleted") or t.get("title", "").startswith("📂 "):
+                    continue
+                old_title = t.get("title", "")
+                new_title = self.clean_task_title(old_title)
+                if new_title and new_title != old_title:
+                    self.client.update_task(target_account, list_id, t["id"], {
+                        "title": new_title,
+                        "notes": t.get("notes", ""),
+                        "status": t.get("status", "needsAction")
+                    })
+                    cleaned_count += 1
+                    time.sleep(0.02)
+
+        if cleaned_count > 0:
+            self.log(f"Volgnummers succesvol verwijderd uit {cleaned_count} taken in Google Tasks!", level="success")
+        return {"success": True, "cleaned_count": cleaned_count}
 
     def export_full_json(self, account_id: Optional[str] = None) -> Dict[str, Any]:
         accounts = self.client.get_accounts()
@@ -551,7 +633,7 @@ class SyncEngine:
             self.is_syncing = False
 
     def get_all_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Haalt alle taken op uit alle lijsten met hun huidige lijstnaam, controleert voltooide herhalende taken en levert voltooiingshistorie mee."""
+        """Haalt alle taken op uit alle lijsten met hun huidige lijstnaam, stript nummers uit titels, berekent lijstposities en levert voltooiingshistorie mee."""
         accounts = self.client.get_accounts()
         if not accounts:
             return []
@@ -567,15 +649,19 @@ class SyncEngine:
             list_title = cl["title"]
             is_todo = (list_title.lower() == "to do")
             raw_tasks = self.client.list_tasks(target_account, list_id)
-            for t in raw_tasks:
-                if t.get("deleted"):
-                    continue
+            active_tasks = [t for t in raw_tasks if not t.get("deleted") and not t.get("title", "").startswith("📂 ")]
+            active_tasks.sort(key=lambda x: x.get("position", ""))
+            total_in_list = len(active_tasks)
+
+            for idx, t in enumerate(active_tasks):
+                position_in_list = idx + 1
                 tit = t.get("title", "").strip()
+                clean_tit = self.clean_task_title(tit)
                 t_id = t.get("id")
                 t_notes = t.get("notes", "")
                 t_status = t.get("status", "needsAction")
                 completed_at = t.get("completed")
-                t_key = self._normalize_title_key(tit)
+                t_key = self._normalize_title_key(clean_tit)
                 freq = self.extract_frequency_from_notes(t_notes)
 
                 # Voltooiingsgeschiedenis bijwerken en herhalende taak resetten indien criteria voldaan zijn
@@ -584,7 +670,7 @@ class SyncEngine:
                         completed_at = self.completion_history[t_key].get("last_completed_at")
 
                     if completed_at:
-                        self.record_task_completion(t_id, tit, completed_at=completed_at, frequency=freq)
+                        self.record_task_completion(t_id, clean_tit, completed_at=completed_at, frequency=freq)
 
                     # Indien herhalend en criteria verstreken: automatisch weer openen
                     if freq and completed_at and self.should_reset_task(freq, completed_at):
@@ -598,28 +684,28 @@ class SyncEngine:
                                     self.completion_history[t_key]["last_reset_at"] = now_iso
                                 self.save_completion_history()
                                 disp_date = completed_at[:10]
-                                self.log(f"🔄 Taak '{tit}' in '{list_title}' automatisch weer op onvoltooid gezet (frequentie: {freq}, voltooid op {disp_date})", level="success")
+                                self.log(f"🔄 Taak '{clean_tit}' in '{list_title}' automatisch weer op onvoltooid gezet (frequentie: {freq}, voltooid op {disp_date})", level="success")
                         except Exception as e:
-                            print(f"Kon taak '{tit}' niet automatisch resetten: {e}")
+                            print(f"Kon taak '{clean_tit}' niet automatisch resetten: {e}")
 
                 # Bepaal recentste voltooiingstijdstip uit persistentie of API
                 last_completed = (self.completion_history.get(t_key) or {}).get("last_completed_at") or completed_at
 
-                has_num = bool(re.search(r"^\d+\.", tit)) or bool(re.search(r"-\s*\d+\.", tit))
                 issues = []
                 if is_todo:
                     issues.append("Staat in 'To do' lijst")
-                if not has_num and not tit.startswith("📂 "):
-                    issues.append("Geen volgnummer")
 
                 tasks_pool.append({
                     "id": t_id,
-                    "title": tit,
+                    "title": clean_tit,
+                    "raw_title": tit,
                     "notes": t_notes,
                     "status": t_status,
                     "completed": completed_at if t_status == "completed" else None,
                     "last_completed": last_completed,
                     "frequency": freq,
+                    "position": position_in_list,
+                    "total_in_list": total_in_list,
                     "due": t.get("due"),
                     "parent_id": t.get("parent"),
                     "current_list_id": list_id,
@@ -629,8 +715,8 @@ class SyncEngine:
                     "issues": issues
                 })
         
-        # Sorteer: onvolledige taken bovenaan, daarna op lijst en titel
-        tasks_pool.sort(key=lambda x: (not x.get("needs_formatting", False), x.get("current_list_title", ""), x.get("title", "")))
+        # Sorteer: onvolledige taken bovenaan, daarna op lijst en positie
+        tasks_pool.sort(key=lambda x: (not x.get("needs_formatting", False), x.get("current_list_title", ""), x.get("position", 999)))
         return tasks_pool
 
     def get_inbox_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -1056,53 +1142,8 @@ class SyncEngine:
                 parent_folder_id = t["id"]
                 break
 
-        # Calculate next number if title doesn't already have one
-        clean_title = title.strip()
-        has_num = bool(re.match(r"^\d+\.\s*", clean_title))
-        if not has_num:
-            # Find max number among tasks with similar parent or prefix
-            max_num = 0
-            for t in raw_existing:
-                t_tit = t.get("title", "").strip()
-                if t.get("deleted") or t_tit.startswith("📂 "):
-                    continue
-                # If sublist specified and this task has sub-prefix like "04. Eigen Studio - 09. ...", match prefix
-                sub_match = re.match(r"^(\d+\.\s*.*?-\s*)(\d+)\.", t_tit)
-                if clean_sub_name and sub_match:
-                    if clean_sub_name.lower() in sub_match.group(1).lower():
-                        cur_n = int(sub_match.group(2))
-                        if cur_n > max_num:
-                            max_num = cur_n
-                else:
-                    # If this task belongs to the same parent_folder_id or root
-                    if parent_folder_id and t.get("parent") == parent_folder_id:
-                        m = re.search(r"(\d+)\.", t_tit)
-                        if m:
-                            cur_n = int(m.group(1))
-                            if cur_n > max_num:
-                                max_num = cur_n
-                    elif not parent_folder_id:
-                        m = re.match(r"^(\d+)\.", t_tit)
-                        if m:
-                            cur_n = int(m.group(1))
-                            if cur_n > max_num:
-                                max_num = cur_n
-
-            next_num = max_num + 1 if max_num > 0 else 1
-            
-            # Check for sub-prefix in existing tasks for this sublist
-            sub_prefix = None
-            if clean_sub_name:
-                for t in raw_existing:
-                    t_tit = t.get("title", "").strip()
-                    m_p = re.match(r"^(\d+\.\s*" + re.escape(clean_sub_name) + r"\s*-\s*)", t_tit)
-                    if m_p:
-                        sub_prefix = m_p.group(1)
-                        break
-            if sub_prefix:
-                clean_title = f"{sub_prefix}{next_num:02d}. {clean_title}"
-            else:
-                clean_title = f"{next_num:02d}. {clean_title}"
+        # Schone titel zonder hardcoded volgnummers
+        clean_title = self.clean_task_title(title)
 
         # Avoid duplicate task
         for t in raw_existing:
@@ -1187,16 +1228,8 @@ class SyncEngine:
                     parent_folder_id = dt["id"]
                     break
 
-        # Adjust title prefix if moving sublist within Wisselende Kapiteins
-        final_title = title.strip()
-        if clean_sub:
-            base_title = re.sub(r"^(\d+\.\s*.*?-\s*)?\d+\.\s*", "", final_title).strip()
-            sub_num_m = re.match(r"^(\d+)\.\s*(?:Bouw\s*-\s*)?(.*)$", clean_sub)
-            if sub_num_m and "wisselende kapiteins" in effective_dest_title.lower():
-                prefix = f"{sub_num_m.group(1)}. {sub_num_m.group(2)} - "
-                final_title = f"{prefix}{base_title}"
-            elif base_title and base_title != final_title:
-                final_title = base_title
+        # Schone titel zonder hardcoded volgnummers
+        final_title = self.clean_task_title(title)
 
         body: Dict[str, Any] = {
             "title": final_title,
@@ -1238,56 +1271,25 @@ class SyncEngine:
             return {"success": True, "task_id": task_id}
 
     def renumber_list_tasks(self, account_id: str, list_id: str, list_title: str) -> None:
-        """Her-nummert alle taken binnen een lijst netjes van 01 t/m N (en behoudt sublijst prefix indien aanwezig)."""
-        import re
+        """Houdt taaktitels schoon zonder hardcoded volgnummers."""
         try:
             raw_tasks = self.client.list_tasks(account_id, list_id)
             active_tasks = [t for t in raw_tasks if not t.get("deleted") and not t.get("title", "").startswith("📂 ")]
-            
-            # Sorteer taken op basis van hun huidige nummer of positie
-            def task_sort_key(t):
-                tit = t.get("title", "")
-                m = re.search(r"(\d+)", tit)
-                return int(m.group(1)) if m else 999
-            
-            active_tasks.sort(key=task_sort_key)
-            
-            # Sub-grouping by sub-prefix (bijv. "04. Eigen Studio -") of algemene lijstnummering
-            subgroup_counters = {}
-            global_counter = 1
-
             for t in active_tasks:
                 old_title = t.get("title", "").strip()
                 t_id = t.get("id")
                 if not old_title or not t_id:
                     continue
-
-                new_title = old_title
-                sub_match = re.match(r"^(\d+\.\s*.*?-\s*)\d*\.?\s*(.*)$", old_title)
-                if sub_match:
-                    prefix = sub_match.group(1)
-                    core_name = sub_match.group(2).strip()
-                    subgroup_counters[prefix] = subgroup_counters.get(prefix, 0) + 1
-                    num_str = f"{subgroup_counters[prefix]:02d}"
-                    new_title = f"{prefix}{num_str}. {core_name}"
-                else:
-                    main_match = re.match(r"^\d+\.\s*(.*)$", old_title)
-                    core_name = main_match.group(1).strip() if main_match else old_title
-                    num_str = f"{global_counter:02d}"
-                    new_title = f"{num_str}. {core_name}"
-                    global_counter += 1
-
+                new_title = self.clean_task_title(old_title)
                 if new_title != old_title:
                     self.client.update_task(account_id, list_id, t_id, {
                         "title": new_title,
                         "notes": t.get("notes", ""),
                         "status": t.get("status", "needsAction")
                     })
-                    self.log(f"Nummering gecorrigeerd in '{list_title}': '{old_title}' ➔ '{new_title}'")
-                    time.sleep(0.03)
-
+                    time.sleep(0.02)
         except Exception as e:
-            self.log(f"Fout bij hernummeren van '{list_title}': {str(e)}", level="error")
+            self.log(f"Fout bij opschonen titels in '{list_title}': {str(e)}", level="error")
 
     def reassign_tasks_batch(self, moves: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
         """Verplaatst taken naar een andere lijst of sub-lijst, voorkomt duplicaten en maakt nummering sluitend."""
@@ -1351,16 +1353,8 @@ class SyncEngine:
                         parent_folder_id = dt["id"]
                         break
 
-            # Handle title prefix if moving sublist within Wisselende Kapiteins or Bouw projects
-            final_title = t_title
-            if clean_sub:
-                base_title = re.sub(r"^(\d+\.\s*.*?-\s*)?\d+\.\s*", "", t_title).strip()
-                sub_num_m = re.match(r"^(\d+)\.\s*(?:Bouw\s*-\s*)?(.*)$", clean_sub)
-                if sub_num_m and target_title and "wisselende kapiteins" in target_title.lower():
-                    prefix = f"{sub_num_m.group(1)}. {sub_num_m.group(2)} - "
-                    final_title = f"{prefix}{base_title}"
-                elif base_title and base_title != t_title:
-                    final_title = base_title
+            # Schone titel zonder hardcoded volgnummers
+            final_title = self.clean_task_title(t_title)
 
             if target_list_id and cur_list_id != target_list_id:
                 affected_lists.add((cur_list_id, lists_by_id.get(cur_list_id, "Bronlijst")))

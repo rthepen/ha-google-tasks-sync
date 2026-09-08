@@ -242,6 +242,33 @@ async def check_frequencies():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class MoveTaskPositionPayload(BaseModel):
+    task_id: str
+    list_id: str
+    new_position: int
+    account_id: Optional[str] = None
+
+@app.post("/api/tasks/move-position")
+async def move_task_position(payload: MoveTaskPositionPayload):
+    try:
+        res = sync_engine.move_task_position(
+            task_id=payload.task_id,
+            list_id=payload.list_id,
+            new_position=payload.new_position,
+            account_id=payload.account_id
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/tasks/clean-titles")
+async def clean_titles():
+    try:
+        res = sync_engine.clean_all_task_titles()
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 class DeleteTaskPayload(BaseModel):
     task_id: str
     list_id: str

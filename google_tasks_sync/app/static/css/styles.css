@@ -624,6 +624,41 @@ html, body {
   gap: 3px;
 }
 
+/* Position Dropdown (Vervangt hardcoded nummers in titel) */
+.task-position-select {
+  height: 22px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  color: #79c0ff;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-top: 1px;
+  text-align: center;
+}
+
+.task-position-select:hover {
+  border-color: #58a6ff;
+  background: #1c2128;
+  color: #a5d6ff;
+  box-shadow: 0 0 6px rgba(56, 139, 253, 0.3);
+}
+
+.task-position-select:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+
+.task-position-select.loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /* ================================================= */
 /* VIEW 3: WIZARD KAPITEIN VERDELER STYLES */
 /* ================================================= */
