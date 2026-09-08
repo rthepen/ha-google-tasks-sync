@@ -82,6 +82,23 @@ document.addEventListener('DOMContentLoaded', () => {
     '06. Twee Kapiteins (Samen Doen)'
   ];
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function cleanCategoryName(name) {
+    if (!name) return '';
+    let c = name.replace(/^[📁📂]\s*/, '').trim();
+    c = c.replace(/^\d+[\.\)]\s*/, '').trim();
+    return c;
+  }
+
   const defaultCategories = [
     "Bouw - Verwarming Kelder",
     "Bouw - Studio Dave",
@@ -98,22 +115,13 @@ document.addEventListener('DOMContentLoaded', () => {
     "Huishouden & Zorg",
     "Hobby's & Vrije Tijd"
   ];
-  const customCategories = new Set();
-
-  function cleanCategoryName(name) {
-    if (!name) return '';
-    let c = name.replace(/^[📁📂]\s*/, '').trim();
-    c = c.replace(/^\d+[\.\)]\s*/, '').trim();
-    return c;
-  }
+  let activeCategories = new Set(defaultCategories.map(cleanCategoryName));
 
   function buildSublistOptions(selectedSublist) {
     let html = `<option value="">-- Geen / Automatisch Bepalen --</option>`;
     
-    // Vlakke lijst van unieke categorieën (geen themagroepen meer)
-    const allCats = new Set();
-    defaultCategories.forEach(c => allCats.add(cleanCategoryName(c)));
-    customCategories.forEach(c => allCats.add(cleanCategoryName(c)));
+    // Vlakke lijst van unieke categorieën
+    const allCats = new Set(activeCategories);
 
     if (typeof managerTasks !== 'undefined' && managerTasks && managerTasks.length) {
       managerTasks.forEach(t => {
@@ -124,13 +132,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selectedSublist) {
       allCats.add(cleanCategoryName(selectedSublist));
     }
+    allCats.add('Ongelabeld');
 
     const sortedCats = Array.from(allCats).filter(Boolean).sort(naturalSort);
     const cleanSel = cleanCategoryName(selectedSublist);
 
     sortedCats.forEach(s => {
       const isSel = (s === cleanSel) || (cleanSel && s.toLowerCase() === cleanSel.toLowerCase());
-      html += `<option value="${s}" ${isSel ? 'selected' : ''}>📂 ${s}</option>`;
+      html += `<option value="${escapeHtml(s)}" ${isSel ? 'selected' : ''}>📂 ${escapeHtml(s)}</option>`;
     });
 
     return html;
@@ -294,7 +303,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       const rawTasks = data.tasks || [];
       const serverCats = data.categories || [];
-      serverCats.forEach(c => customCategories.add(cleanCategoryName(c)));
+      if (Array.isArray(serverCats) && serverCats.length > 0) {
+        activeCategories = new Set(serverCats.map(cleanCategoryName));
+      }
 
       // Filter out folder header tasks so only real tasks appear in the list and strip numbers from titles
       managerTasks = rawTasks.filter(t => !t.title.startsWith('📂 ')).map(t => {
@@ -306,18 +317,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const openCount = managerTasks.length - completedCount;
       managerStatsTag.textContent = `${managerTasks.length} taken (${openCount} open, ${completedCount} voltooid)`;
       
-      // Update sublist filter options (bevat alle categorieën, inclusief nieuw aangemaakte)
-      const allSublists = new Set();
-      defaultCategories.forEach(c => allSublists.add(cleanCategoryName(c)));
-      customCategories.forEach(c => allSublists.add(cleanCategoryName(c)));
+      // Update sublist filter options (bevat alle actieve categorieën)
+      const allSublists = new Set(activeCategories);
       managerTasks.forEach(t => {
         const s = extractSublist(t.notes, t.current_list_title, t.title);
         if (s) allSublists.add(cleanCategoryName(s));
       });
+      allSublists.add('Ongelabeld');
       
       const prevSub = managerFilterSublist.value;
       managerFilterSublist.innerHTML = '<option value="all">📂 Alle Categorieën</option>' + 
-        Array.from(allSublists).filter(Boolean).sort(naturalSort).map(s => `<option value="${s}" ${s === prevSub ? 'selected' : ''}>📂 ${s}</option>`).join('');
+        Array.from(allSublists).filter(Boolean).sort(naturalSort).map(s => `<option value="${escapeHtml(s)}" ${s === prevSub ? 'selected' : ''}>📂 ${escapeHtml(s)}</option>`).join('');
 
       renderManagerTable();
     } catch (e) {
@@ -390,13 +400,22 @@ document.addEventListener('DOMContentLoaded', () => {
       // Sort tasks inside category by position in list, then natural sort
       grouped[subName].sort((a, b) => (a.position || 0) - (b.position || 0) || naturalSort(a.title, b.title));
       const count = grouped[subName].length;
+      const isOngelabeld = (subName || '').toLowerCase() === 'ongelabeld';
+      const deleteCatBtnHtml = !isOngelabeld ? `
+        <button type="button" class="btn btn-sm btn-outline btn-delete-category" data-category="${escapeHtml(subName)}" title="Categorie '${escapeHtml(subName)}' verwijderen (taken worden verplaatst naar Ongelabeld)" style="margin-left:auto; padding: 2px 8px; font-size: 0.75rem; color: #f85149; border-color: rgba(248,81,73,0.3); background: rgba(248,81,73,0.08); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border-radius: 4px;">
+          <svg class="icon" style="width:12px; height:12px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          Verwijderen
+        </button>
+      ` : '';
+
       html += `
         <tr class="sublist-header-row">
           <td colspan="5">
-            <div class="sublist-header-badge">
+            <div class="sublist-header-badge" style="display: flex; align-items: center; gap: 8px;">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              <strong>Categorie: ${subName}</strong>
-              <span class="tag" style="margin-left:auto;">${count} taken</span>
+              <strong>Categorie: ${escapeHtml(subName)}</strong>
+              <span class="tag" ${isOngelabeld ? 'style="margin-left:auto;"' : ''}>${count} taken</span>
+              ${deleteCatBtnHtml}
             </div>
           </td>
         </tr>
@@ -676,6 +695,19 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         await deleteTask(tId, listId, title);
+      });
+    });
+
+    // Attach delete category button listeners
+    managerTbody.querySelectorAll('.btn-delete-category').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const catName = btn.dataset.category;
+        if (!catName || catName.toLowerCase() === 'ongelabeld') return;
+        if (!confirm(`Weet je zeker dat je categorie '${catName}' wilt verwijderen?\n\nAlle taken in deze categorie worden automatisch verplaatst naar 'Ongelabeld'.`)) {
+          return;
+        }
+        await executeDeleteCategory(catName);
       });
     });
 
@@ -1900,9 +1932,79 @@ document.addEventListener('DOMContentLoaded', () => {
   const addSublistForm = document.getElementById('add-sublist-form');
   const addSublistName = document.getElementById('add-sublist-name');
 
+  function renderExistingCategoriesInModal() {
+    const container = document.getElementById('existing-categories-list');
+    if (!container) return;
+    const cats = Array.from(activeCategories).filter(Boolean).sort(naturalSort);
+    if (!cats.length) {
+      container.innerHTML = '<span style="color:var(--text-muted); font-size:12px; padding: 4px;">Geen categorieën gevonden.</span>';
+      return;
+    }
+    container.innerHTML = cats.map(c => {
+      const isOngelabeld = (c || '').toLowerCase() === 'ongelabeld';
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; background:var(--card-bg, #161b22); border:1px solid var(--border-color, #30363d); border-radius:6px; padding:6px 10px; font-size:12px;">
+          <span style="font-weight:500;">📂 ${escapeHtml(c)}</span>
+          ${isOngelabeld ? '<span class="tag" style="font-size:10px;">Standaard</span>' : `
+            <button type="button" class="btn btn-sm btn-outline btn-modal-delete-category" data-category="${escapeHtml(c)}" title="Categorie '${escapeHtml(c)}' verwijderen" style="padding:2px 8px; font-size:11px; color:#f85149; border-color:rgba(248,81,73,0.3); background:rgba(248,81,73,0.06); cursor:pointer;">
+              🗑️ Verwijderen
+            </button>
+          `}
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.btn-modal-delete-category').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const catName = btn.dataset.category;
+        if (!catName || catName.toLowerCase() === 'ongelabeld') return;
+        if (!confirm(`Weet je zeker dat je categorie '${catName}' wilt verwijderen?\n\nAlle taken in deze categorie worden automatisch verplaatst naar 'Ongelabeld'.`)) {
+          return;
+        }
+        await executeDeleteCategory(catName);
+      });
+    });
+  }
+
+  async function executeDeleteCategory(catName) {
+    if (!catName || catName.toLowerCase() === 'ongelabeld') {
+      showToast("De categorie 'Ongelabeld' kan niet worden verwijderd", true);
+      return;
+    }
+    showToast(`Categorie '${catName}' verwijderen en taken naar 'Ongelabeld' verplaatsen...`);
+    try {
+      const res = await fetch(`${rootPath}/api/categories/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category_name: catName })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.detail || data.error || 'Fout bij verwijderen van categorie');
+      }
+
+      const count = data.reassigned_count !== undefined ? data.reassigned_count : 0;
+      showToast(`✓ Categorie '${catName}' verwijderd! ${count} taken verplaatst naar 'Ongelabeld'. 🎉`);
+
+      if (data.categories && Array.isArray(data.categories)) {
+        activeCategories = new Set(data.categories.map(cleanCategoryName));
+      } else {
+        activeCategories.delete(cleanCategoryName(catName));
+      }
+
+      await loadManagerTasks();
+      loadJsonExport();
+      renderExistingCategoriesInModal();
+    } catch (err) {
+      showToast('Fout bij verwijderen: ' + err.message, true);
+    }
+  }
+
   function openAddSublistModal() {
     if (!addSublistModal) return;
     if (addSublistName) addSublistName.value = '';
+    renderExistingCategoriesInModal();
     addSublistModal.style.display = 'flex';
     if (addSublistName) addSublistName.focus();
   }
@@ -1943,9 +2045,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (data.success) {
         const newSubName = data.sublist_name || rawName;
-        customCategories.add(cleanCategoryName(newSubName));
+        activeCategories.add(cleanCategoryName(newSubName));
         if (data.categories && Array.isArray(data.categories)) {
-          data.categories.forEach(c => customCategories.add(cleanCategoryName(c)));
+          activeCategories = new Set(data.categories.map(cleanCategoryName));
         }
 
         showToast(`✓ Categorie '${newSubName}' succesvol toegevoegd! 🎉`);

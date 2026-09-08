@@ -98,33 +98,112 @@ class SyncEngine:
         except Exception as e:
             print(f"Kon completion history niet opslaan: {e}")
 
+    def clean_category_name(self, name: str) -> str:
+        if not name:
+            return ""
+        c = name.replace("📂", "").replace("📁", "").strip()
+        c = re.sub(r"^\d+[\.\)]\s*", "", c).strip()
+        return c
+
     def load_custom_categories(self):
-        """Laadt handmatig toegevoegde categorieën van disk."""
+        """Laadt handmatig toegevoegde en uitgesloten categorieën van disk."""
         try:
             if os.path.exists(self.categories_file):
                 with open(self.categories_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    self.custom_categories = data.get("categories", [])
+                    self.custom_categories = [self.clean_category_name(x) for x in data.get("categories", []) if x]
+                    self.excluded_categories = [self.clean_category_name(x) for x in data.get("excluded", []) if x]
         except Exception as e:
             print(f"Kon custom categories niet laden: {e}")
             self.custom_categories = []
+            self.excluded_categories = []
 
     def save_custom_categories(self):
-        """Slaat handmatig toegevoegde categorieën op disk op."""
+        """Slaat handmatig toegevoegde en uitgesloten categorieën op disk op."""
         try:
             os.makedirs(os.path.dirname(self.categories_file), exist_ok=True)
             with open(self.categories_file, "w", encoding="utf-8") as f:
-                json.dump({"categories": self.custom_categories}, f, indent=2, ensure_ascii=False)
+                json.dump({
+                    "categories": self.custom_categories,
+                    "excluded": getattr(self, "excluded_categories", [])
+                }, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Kon custom categories niet opslaan: {e}")
 
     def get_all_categories(self) -> List[str]:
-        """Geeft alle unieke categorieën terug (standaard + custom)."""
+        """Geeft alle unieke categorieën terug (standaard + custom - excluded)."""
         cats = set(DEFAULT_CATEGORIES)
         for c in self.custom_categories:
             if c:
-                cats.add(c.strip())
+                cats.add(self.clean_category_name(c))
+        for ex in getattr(self, "excluded_categories", []):
+            if ex in cats:
+                cats.remove(ex)
+        cats.add("Ongelabeld")
         return sorted(list(cats), key=lambda s: s.lower())
+
+    def delete_category(self, category_name: str, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Verwijdert een categorie en verplaatst alle taken in die categorie naar 'Ongelabeld'."""
+        clean_cat = self.clean_category_name(category_name)
+        if not clean_cat:
+            raise ValueError("Categorienaam mag niet leeg zijn")
+
+        if clean_cat.lower() == "ongelabeld":
+            raise ValueError("De categorie 'Ongelabeld' kan niet worden verwijderd")
+
+        accounts = self.client.get_accounts()
+        if not accounts:
+            return {"success": False, "error": "Geen accounts geconfigureerd"}
+
+        targets = [account_id] if account_id and account_id in accounts else list(accounts.keys())
+        reassigned_count = 0
+
+        # Verwijder uit custom categories en sla op
+        self.custom_categories = [c for c in self.custom_categories if self.clean_category_name(c).lower() != clean_cat.lower()]
+        
+        # Voeg toe aan excluded_categories zodat standaard categorieën ook niet terugkeren
+        if not hasattr(self, "excluded_categories"):
+            self.excluded_categories = []
+        if clean_cat not in self.excluded_categories:
+            self.excluded_categories.append(clean_cat)
+        self.save_custom_categories()
+
+        # Update alle taken die deze categorie hadden
+        for acc in targets:
+            tasklists = self.client.list_tasklists(acc)
+            for tl in tasklists:
+                list_id = tl["id"]
+                raw_tasks = self.client.list_tasks(acc, list_id)
+                for t in raw_tasks:
+                    if t.get("deleted"):
+                        continue
+                    notes = t.get("notes", "") or ""
+                    
+                    # Check of taak gekoppeld is aan deze categorie via [tag]
+                    cat_match = False
+                    tags = re.findall(r"\[(.*?)\]", notes)
+                    for tag in tags:
+                        if self.clean_category_name(tag).lower() == clean_cat.lower():
+                            cat_match = True
+                            break
+                    
+                    if cat_match:
+                        # Herschrijf de categorie tag in notes naar [Ongelabeld]
+                        new_notes = self.format_task_notes(notes=notes, sublist="Ongelabeld")
+                        try:
+                            self.client.update_task(acc, list_id, t["id"], {"notes": new_notes})
+                            reassigned_count += 1
+                            self.log(f"Taak '{t.get('title')}' verplaatst van '{clean_cat}' naar 'Ongelabeld'")
+                        except Exception as e:
+                            self.log(f"Kon taak '{t.get('title')}' niet bijwerken naar 'Ongelabeld': {e}", level="warning")
+
+        self.log(f"🗑️ Categorie '{clean_cat}' verwijderd. {reassigned_count} taken verplaatst naar 'Ongelabeld'.", level="success")
+        return {
+            "success": True,
+            "deleted_category": clean_cat,
+            "reassigned_count": reassigned_count,
+            "categories": self.get_all_categories()
+        }
 
     def clean_task_title(self, title: str) -> str:
         """Stript hardcoded volgnummers (zoals '05. ', '01. Bouw - Verwarming - 02. ') uit de taaktitel."""
@@ -1090,7 +1169,11 @@ class SyncEngine:
         if not clean_name:
             raise ValueError("Categorienaam mag niet leeg zijn")
 
-        if clean_name not in self.custom_categories and clean_name not in DEFAULT_CATEGORIES:
+        if hasattr(self, "excluded_categories") and any(x.lower() == clean_name.lower() for x in self.excluded_categories):
+            self.excluded_categories = [x for x in self.excluded_categories if x.lower() != clean_name.lower()]
+            self.save_custom_categories()
+
+        if clean_name not in self.custom_categories:
             self.custom_categories.append(clean_name)
             self.save_custom_categories()
 

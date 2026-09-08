@@ -20,7 +20,7 @@
         </div>
         <div class="brand-text">
           <h1>Google Tasks & Kapitein Verdeler</h1>
-          <span class="badge" id="sync-status-badge">v1.1.36</span>
+          <span class="badge" id="sync-status-badge">v1.1.37</span>
         </div>
       </div>
       
@@ -556,6 +556,16 @@
           <div style="background:rgba(56,139,253,0.1); border:1px solid rgba(56,139,253,0.25); border-radius:6px; padding:8px 12px; font-size:12px; color:#79c0ff; line-height:1.4;">
             💡 <strong>Universele eigenschap:</strong> Categorieën zijn eigenschappen van taken en zijn niet gekoppeld aan een vaste Kapitein. Elke taak kan aan deze categorie worden toegekend.
           </div>
+
+          <div style="margin-top: 6px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+            <label style="font-size:12.5px; font-weight:600; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; color:var(--text-main);">
+              <span>Bestaande Categorieën:</span>
+              <span style="font-size:11px; font-weight:normal; color:var(--text-muted);">Verwijderen verplaatst taken naar Ongelabeld</span>
+            </label>
+            <div id="existing-categories-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px;">
+              <!-- Dynamisch gevuld via app.js -->
+            </div>
+          </div>
         </form>
       </div>
 
@@ -766,7 +776,7 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.36">
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.36"></script>
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.37">
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.37"></script>
 </body>
 </html>

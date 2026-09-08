@@ -192,6 +192,18 @@ async def create_sublist(payload: CreateSublistPayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class DeleteCategoryPayload(BaseModel):
+    category_name: str
+
+@app.post("/api/categories/delete")
+async def delete_category(payload: DeleteCategoryPayload):
+    try:
+        res = sync_engine.delete_category(payload.category_name)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 class UpdateTaskPayload(BaseModel):
     task_id: str
     list_id: str
