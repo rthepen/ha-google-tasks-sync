@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const managerSearch = document.getElementById('manager-search');
   const managerFilterList = document.getElementById('manager-filter-list');
   const managerFilterSublist = document.getElementById('manager-filter-sublist');
+  const managerFilterTiming = document.getElementById('manager-filter-timing');
   const btnReloadManager = document.getElementById('btn-reload-manager');
   const btnSaveReassignments = document.getElementById('btn-save-reassignments');
   const pendingCountSpan = document.getElementById('reassign-pending-count');
@@ -121,73 +122,96 @@ document.addEventListener('DOMContentLoaded', () => {
     ]
   };
 
-  function buildSublistOptions(selectedSublist, targetList) {
+  function buildSublistOptions(selectedSublist) {
     let html = `<option value="">-- Geen / Automatisch Bepalen --</option>`;
     
-    // Aanbevolen voor gekozen lijst
-    const recommended = sublistsByList[targetList] || [];
-    if (recommended.length > 0) {
-      html += `<optgroup label="⭐ Aanbevolen voor ${targetList}">`;
-      recommended.forEach(s => {
-        const isSel = (s === selectedSublist) || (selectedSublist && s.toLowerCase().includes(selectedSublist.toLowerCase()));
-        html += `<option value="${s}" ${isSel ? 'selected' : ''}>📂 ${s}</option>`;
-      });
-      html += `</optgroup>`;
-    }
-
-    // Alle andere categorieën
+    // Universele themacategorieën (sublijsten zijn niet gebonden aan een hoofdlijst)
     Object.keys(allSublistCategories).forEach(cat => {
       html += `<optgroup label="📁 ${cat}">`;
       allSublistCategories[cat].forEach(s => {
-        if (recommended.includes(s)) return;
-        const isSel = (s === selectedSublist);
+        const isSel = (s === selectedSublist) || (selectedSublist && (s.toLowerCase() === selectedSublist.toLowerCase() || s.toLowerCase().includes(selectedSublist.toLowerCase())));
         html += `<option value="${s}" ${isSel ? 'selected' : ''}>${s}</option>`;
       });
       html += `</optgroup>`;
     });
 
+    // Eventuele aangepaste/dynamische sublijsten toevoegen indien niet in standaard lijst
+    let allKnown = [];
+    Object.values(allSublistCategories).forEach(arr => allKnown.push(...arr));
+    if (selectedSublist && !allKnown.some(s => s.toLowerCase() === selectedSublist.toLowerCase() || s.toLowerCase().includes(selectedSublist.toLowerCase()))) {
+      html += `<optgroup label="✨ Aangepaste Sub-lijst">`;
+      html += `<option value="${selectedSublist}" selected>${selectedSublist}</option>`;
+      html += `</optgroup>`;
+    }
+
     return html;
+  }
+
+  function extractTiming(notes, taskTitle) {
+    if (notes) {
+      const tags = notes.match(/\[(.*?)\]/g);
+      if (tags) {
+        for (const rawTag of tags) {
+          const t = rawTag.replace(/[\[\]]/g, '').trim().toLowerCase();
+          if (t.includes('vast')) return 'vast';
+          if (t.includes('los')) return 'los';
+        }
+      }
+    }
+    // Heuristiek op basis van trefwoorden in titel indien nog niet expliciet getagd
+    const combined = ((taskTitle || '') + ' ' + (notes || '')).toLowerCase();
+    const vastKw = ['container', 'kliko', 'afval', 'vuilnis', 'papiercontainer', 'gft', 'pmd', 'ophalen', 'aan de weg', 'meteropname', 'keuring', 'afspraak', 'tandarts', 'dokter', 'vergadering', 'overleg'];
+    if (vastKw.some(k => combined.includes(k))) {
+      return 'vast';
+    }
+    return 'los';
   }
 
   function extractSublist(notes, listTitle, taskTitle) {
     if (notes) {
-      const match = notes.match(/^\[(.*?)\]/);
-      if (match) {
-        let clean = match[1];
-        // Standardize naming if unnumbered
-        if (clean === 'Bouw - Verwarming Kelder' || clean === 'Verwarming Kelder') return "01. Bouw - Verwarming Kelder";
-        if (clean === 'Bouw - Studio Dave' || clean === 'Studio Dave') return "02. Bouw - Studio Dave";
-        if (clean === 'Bouw - Studio Rahiena' || clean === 'Studio Rahiena') return "03. Bouw - Studio Rahiena";
-        if (clean === 'Bouw - Eigen Studio' || clean === 'Eigen Studio') return "04. Bouw - Eigen Studio";
-        if (clean === 'Bouw - Thuisaccu' || clean === 'Thuisaccu') return "05. Bouw - Thuisaccu";
-        if (clean === 'Bouw - Home Assistant' || clean === 'Home Assistant') return "06. Bouw - Home Assistant";
-        return clean;
+      const tags = notes.match(/\[(.*?)\]/g);
+      if (tags) {
+        for (const rawTag of tags) {
+          let clean = rawTag.replace(/[\[\]]/g, '').trim();
+          const low = clean.toLowerCase();
+          if (low.includes('vast in tijd') || low === 'vast' || low.includes('los in tijd') || low === 'los') {
+            continue; // Sla timing tag over
+          }
+          // Standardize naming if unnumbered
+          if (clean === 'Bouw - Verwarming Kelder' || clean === 'Verwarming Kelder') return "01. Bouw - Verwarming Kelder";
+          if (clean === 'Bouw - Studio Dave' || clean === 'Studio Dave') return "02. Bouw - Studio Dave";
+          if (clean === 'Bouw - Studio Rahiena' || clean === 'Studio Rahiena') return "03. Bouw - Studio Rahiena";
+          if (clean === 'Bouw - Eigen Studio' || clean === 'Eigen Studio') return "04. Bouw - Eigen Studio";
+          if (clean === 'Bouw - Thuisaccu' || clean === 'Thuisaccu') return "05. Bouw - Thuisaccu";
+          if (clean === 'Bouw - Home Assistant' || clean === 'Home Assistant') return "06. Bouw - Home Assistant";
+          return clean;
+        }
       }
     }
     const tLow = ((taskTitle || '') + ' ' + (notes || '')).toLowerCase();
     
-    if (listTitle.includes('Twee Kapiteins') || listTitle.includes('Samen Doen')) {
+    if (listTitle && (listTitle.includes('Twee Kapiteins') || listTitle.includes('Samen Doen'))) {
       return "01. Gezamenlijk (Samen Besluiten)";
     }
-    if (listTitle.includes('Roy Persoonlijk')) {
+    if (listTitle && listTitle.includes('Roy Persoonlijk')) {
       if (tLow.includes('brevet') || tLow.includes('zeilboot') || tLow.includes('buitenboordmotor') || tLow.includes('speervissen') || tLow.includes('portugal')) {
         return "01. Hobby's & Vrije Tijd";
       }
       return "02. Persoonlijke Zorg";
     }
-    if (listTitle.includes('Karen Persoonlijk')) return "01. Persoonlijke Zorg";
-    if (listTitle.includes('Kapitein Roy')) {
+    if (listTitle && listTitle.includes('Karen Persoonlijk')) return "01. Persoonlijke Zorg";
+    if (listTitle && listTitle.includes('Kapitein Roy')) {
       if (tLow.includes('gezinshuis') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('evaluatie') || tLow.includes('rapportage')) {
         return "01. Gezinshuis";
       }
       return "02. Techniek & Beheer";
     }
-    if (listTitle.includes('Kapitein Karen')) {
+    if (listTitle && listTitle.includes('Kapitein Karen')) {
       if (tLow.includes('anticonceptie')) return "01. Persoonlijke Zorg";
       if (tLow.includes('kavelweg')) return "02. Gezinshuis";
       return "03. Huishouden & Zorg";
     }
-    if (listTitle.includes('Wisselende Kapiteins')) {
+    if (listTitle && listTitle.includes('Wisselende Kapiteins')) {
       if (tLow.includes('verwarming kelder') || tLow.includes('01. verwarming kelder')) return "01. Bouw - Verwarming Kelder";
       if (tLow.includes('studio dave') || tLow.includes('02. studio dave')) return "02. Bouw - Studio Dave";
       if (tLow.includes('studio rahiena') || tLow.includes('03. studio rahiena')) return "03. Bouw - Studio Rahiena";
@@ -241,16 +265,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const query = (managerSearch.value || '').toLowerCase().trim();
     const listFilter = managerFilterList.value;
     const subFilter = managerFilterSublist.value;
+    const timingFilter = managerFilterTiming ? managerFilterTiming.value : 'all';
 
     const filtered = managerTasks.filter(t => {
       const sub = extractSublist(t.notes, t.current_list_title, t.title);
+      const timing = extractTiming(t.notes, t.title);
       const matchesSearch = t.title.toLowerCase().includes(query) || (t.notes || '').toLowerCase().includes(query) || sub.toLowerCase().includes(query);
       let matchesList = (listFilter === 'all') || (t.current_list_title === listFilter);
       if (listFilter === 'incomplete') {
         matchesList = !!t.needs_formatting;
       }
       const matchesSub = (subFilter === 'all') || (sub === subFilter);
-      return matchesSearch && matchesList && matchesSub;
+      const matchesTiming = (timingFilter === 'all') || (timing === timingFilter);
+      return matchesSearch && matchesList && matchesSub && matchesTiming;
     });
 
     if (filtered.length === 0) {
@@ -285,22 +312,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
       grouped[subName].forEach(t => {
         const currentSub = extractSublist(t.notes, t.current_list_title, t.title);
+        const currentTiming = extractTiming(t.notes, t.title);
         const reassignInfo = pendingReassignments[t.id];
         const isModified = !!reassignInfo;
         const selectedTargetList = isModified ? reassignInfo.target_list_title : t.current_list_title;
         const selectedTargetSub = isModified ? reassignInfo.target_sublist : currentSub;
+        const effectiveTiming = (isModified && reassignInfo.target_timing) ? reassignInfo.target_timing : currentTiming;
 
         const isListChanged = isModified && (reassignInfo.target_list_title !== t.current_list_title);
         const isSubChanged = isModified && (reassignInfo.target_sublist !== currentSub);
+        const isTimingChanged = isModified && reassignInfo.target_timing && (reassignInfo.target_timing !== currentTiming);
 
         const listOptionsHtml = availableLists.map(l => 
           `<option value="${l}" ${l === selectedTargetList ? 'selected' : ''}>${l}</option>`
         ).join('');
 
-        const sublistOptionsHtml = buildSublistOptions(selectedTargetSub, selectedTargetList);
+        const sublistOptionsHtml = buildSublistOptions(selectedTargetSub);
 
-        // Clean display notes
-        const cleanNotes = (t.notes || '').replace(/^\[(.*?)\]\s*/, '');
+        // Schoonmaken van notities zodat sublijst en timing tags niet dubbel tonen
+        const cleanNotes = (t.notes || '').replace(/\[(.*?)\]\s*/g, '').trim();
         const dueDateFormatted = t.due ? new Date(t.due).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
 
         html += `
@@ -308,9 +338,14 @@ document.addEventListener('DOMContentLoaded', () => {
             <td style="padding-left:24px;">
               <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
                 <div>
-                  <strong>${t.title}</strong>
-                  ${t.needs_formatting ? `<span class="badge" style="background:rgba(210,153,34,0.18); color:#d29922; border:1px solid rgba(210,153,34,0.4); font-size:10.5px; margin-left:6px;">⚠️ ${t.issues && t.issues.length ? t.issues.join(', ') : 'Onvolledig'}</span>` : ''}
-                  ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${cleanNotes}</div>` : ''}
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <strong>${t.title}</strong>
+                    <button type="button" class="btn-timing-toggle ${effectiveTiming === 'vast' ? 'badge-timing-vast' : 'badge-timing-los'} ${isTimingChanged ? 'changed' : ''}" data-id="${t.id}" data-timing="${effectiveTiming}" title="Klik om direct te wisselen tussen Vast in tijd (extern bepaald) en Los in tijd (zelf kiezen)">
+                      ${effectiveTiming === 'vast' ? '⏰ Vast in tijd' : '⏳ Los in tijd'}
+                    </button>
+                    ${t.needs_formatting ? `<span class="badge" style="background:rgba(210,153,34,0.18); color:#d29922; border:1px solid rgba(210,153,34,0.4); font-size:10.5px;">⚠️ ${t.issues && t.issues.length ? t.issues.join(', ') : 'Onvolledig'}</span>` : ''}
+                  </div>
+                  ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${cleanNotes}</div>` : ''}
                 </div>
                 <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                   ${t.due ? `<span class="badge" style="font-size:10.5px; background:rgba(210,153,34,0.15); color:#d29922; border-color:rgba(210,153,34,0.4);">📅 ${dueDateFormatted}</span>` : ''}
@@ -341,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </select>
             </td>
             <td>
-              <select class="task-sublist-select ${isSubChanged ? 'changed' : ''}" data-id="${t.id}" title="Verander sub-lijst">
+              <select class="task-sublist-select ${isSubChanged ? 'changed' : ''}" data-id="${t.id}" title="Verander sub-lijst (universele eigenschap)">
                 ${sublistOptionsHtml}
               </select>
             </td>
@@ -351,6 +386,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     managerTbody.innerHTML = html;
+
+    // Attach timing toggle button listeners
+    managerTbody.querySelectorAll('.btn-timing-toggle').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const taskId = btn.dataset.id;
+        const curTiming = btn.dataset.timing;
+        const nextTiming = (curTiming === 'vast') ? 'los' : 'vast';
+        btn.dataset.timing = nextTiming;
+        btn.className = `btn-timing-toggle ${nextTiming === 'vast' ? 'badge-timing-vast' : 'badge-timing-los'}`;
+        btn.innerHTML = (nextTiming === 'vast') ? '⏰ Vast in tijd' : '⏳ Los in tijd';
+        handleTaskAssignmentChange(taskId);
+      });
+    });
 
     // Attach edit button listeners
     managerTbody.querySelectorAll('.btn-edit-task').forEach(btn => {
@@ -390,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Central assignment change handler for both list and sublist dropdowns
+    // Central assignment change handler for both list, sublist dropdowns and timing
     function handleTaskAssignmentChange(taskId) {
       const task = managerTasks.find(t => t.id === taskId);
       if (!task) return;
@@ -399,33 +448,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const listSel = row.querySelector('.task-list-select');
       const subSel = row.querySelector('.task-sublist-select');
+      const timingBtn = row.querySelector('.btn-timing-toggle');
       if (!listSel || !subSel) return;
 
       const targetList = listSel.value;
       const targetSub = subSel.value;
       const currentSub = extractSublist(task.notes, task.current_list_title, task.title);
+      const currentTiming = extractTiming(task.notes, task.title);
+      const targetTiming = timingBtn ? timingBtn.dataset.timing : currentTiming;
 
       const listDiffers = (targetList !== task.current_list_title);
       const subDiffers = (targetSub !== '' && targetSub !== currentSub);
+      const timingDiffers = (targetTiming !== currentTiming);
 
-      if (listDiffers || subDiffers) {
+      if (listDiffers || subDiffers || timingDiffers) {
         pendingReassignments[taskId] = {
           task_id: task.id,
           current_list_id: task.current_list_id,
           current_list_title: task.current_list_title,
           target_list_title: targetList,
           target_sublist: targetSub || currentSub,
+          target_timing: targetTiming,
           title: task.title,
-          notes: task.notes,
-          status: task.status
+          notes: task.notes || '',
+          status: task.status || 'needsAction'
         };
         listSel.classList.toggle('changed', listDiffers);
         subSel.classList.toggle('changed', subDiffers);
+        if (timingBtn) timingBtn.classList.toggle('changed', timingDiffers);
         row.classList.add('modified');
       } else {
         delete pendingReassignments[taskId];
         listSel.classList.remove('changed');
         subSel.classList.remove('changed');
+        if (timingBtn) timingBtn.classList.remove('changed');
         row.classList.remove('modified');
       }
       updatePendingBadge();
@@ -435,12 +491,6 @@ document.addEventListener('DOMContentLoaded', () => {
     managerTbody.querySelectorAll('.task-list-select').forEach(sel => {
       sel.addEventListener('change', () => {
         const taskId = sel.dataset.id;
-        const row = sel.closest('tr');
-        const subSel = row.querySelector('.task-sublist-select');
-        if (subSel) {
-          const currentSubVal = subSel.value;
-          subSel.innerHTML = buildSublistOptions(currentSubVal, sel.value);
-        }
         handleTaskAssignmentChange(taskId);
       });
     });
@@ -463,6 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
   managerSearch.addEventListener('input', renderManagerTable);
   managerFilterList.addEventListener('change', renderManagerTable);
   managerFilterSublist.addEventListener('change', renderManagerTable);
+  if (managerFilterTiming) managerFilterTiming.addEventListener('change', renderManagerTable);
   btnReloadManager.addEventListener('click', loadManagerTasks);
 
   btnSaveReassignments.addEventListener('click', async () => {
@@ -1428,19 +1479,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const addTaskList = document.getElementById('add-task-list');
   const addTaskSublist = document.getElementById('add-task-sublist');
   const addTaskCustomSublist = document.getElementById('add-task-custom-sublist');
+  const addTaskTiming = document.getElementById('add-task-timing');
   const addTaskDue = document.getElementById('add-task-due');
   const addTaskNotes = document.getElementById('add-task-notes');
 
   function populateAddTaskSublists() {
     if (!addTaskSublist) return;
-    const allFoundSublists = new Set();
-    managerTasks.forEach(t => {
-      allFoundSublists.add(extractSublist(t.notes, t.current_list_title, t.title));
-    });
-
-    const sorted = Array.from(allFoundSublists).filter(s => s && s !== 'Algemeen').sort(naturalSort);
-    addTaskSublist.innerHTML = '<option value="">Geen / Nieuw hieronder typen</option>' + 
-      sorted.map(s => `<option value="${s}">📂 ${s}</option>`).join('');
+    addTaskSublist.innerHTML = buildSublistOptions('');
   }
 
   function openAddTaskModal() {
@@ -1450,6 +1495,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addTaskCustomSublist) addTaskCustomSublist.value = '';
     if (addTaskDue) addTaskDue.value = '';
     if (addTaskNotes) addTaskNotes.value = '';
+    if (addTaskTiming) addTaskTiming.value = 'los';
     if (addTaskList) addTaskList.value = '05. Wisselende Kapiteins';
     addTaskModal.style.display = 'flex';
     if (addTaskTitle) addTaskTitle.focus();
@@ -1475,6 +1521,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const listTitle = addTaskList.value;
       const chosenSublist = (addTaskCustomSublist.value || '').trim() || addTaskSublist.value;
+      const timing = addTaskTiming ? addTaskTiming.value : 'los';
       const notes = (addTaskNotes.value || '').trim();
       const due = addTaskDue ? addTaskDue.value : null;
 
@@ -1491,7 +1538,8 @@ document.addEventListener('DOMContentLoaded', () => {
             list_title: listTitle,
             sublist_name: chosenSublist,
             notes: notes,
-            due: due || null
+            due: due || null,
+            timing: timing
           })
         });
 
@@ -1517,7 +1565,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 4B. NIEUWE SUB-LIJST TOEVOEGEN MODAL LOGIC
+  // 4B. NIEUWE SUB-LIJST TOEVOEGEN MODAL LOGIC (Universele taakeigenschap)
   // =========================================================================
   const btnOpenAddSublistModal = document.getElementById('btn-open-add-sublist-modal');
   const addSublistModal = document.getElementById('add-sublist-modal');
@@ -1526,16 +1574,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSubmitAddSublist = document.getElementById('btn-submit-add-sublist');
 
   const addSublistName = document.getElementById('add-sublist-name');
-  const addSublistParentList = document.getElementById('add-sublist-parent-list');
   const addSublistCategory = document.getElementById('add-sublist-category');
-  const addSublistCreateFolder = document.getElementById('add-sublist-create-folder');
 
   function openAddSublistModal() {
     if (!addSublistModal) return;
     if (addSublistName) addSublistName.value = '';
-    if (addSublistParentList) addSublistParentList.value = '05. Wisselende Kapiteins';
     if (addSublistCategory) addSublistCategory.value = 'Bouw Projecten';
-    if (addSublistCreateFolder) addSublistCreateFolder.checked = true;
     addSublistModal.style.display = 'flex';
     if (addSublistName) addSublistName.focus();
   }
@@ -1558,9 +1602,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const listTitle = addSublistParentList.value;
-      const category = addSublistCategory.value;
-      const createFolder = addSublistCreateFolder ? addSublistCreateFolder.checked : true;
+      const category = addSublistCategory ? addSublistCategory.value : 'Bouw Projecten';
 
       btnSubmitAddSublist.disabled = true;
       btnSubmitAddSublist.textContent = 'Bezig met aanmaken...';
@@ -1572,9 +1614,8 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: rawName,
-            list_title: listTitle,
             category: category,
-            create_folder_task: createFolder
+            create_folder_task: false
           })
         });
 
@@ -1582,19 +1623,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           const newSubName = data.sublist_name;
 
-          // Register in local lookup structures
-          if (!sublistsByList[listTitle]) sublistsByList[listTitle] = [];
-          if (!sublistsByList[listTitle].includes(newSubName)) {
-            sublistsByList[listTitle].push(newSubName);
-          }
-
           const catKey = category || 'Bouw Projecten';
           if (!allSublistCategories[catKey]) allSublistCategories[catKey] = [];
           if (!allSublistCategories[catKey].includes(newSubName)) {
             allSublistCategories[catKey].push(newSubName);
           }
 
-          showToast(`✓ Sub-lijst '${newSubName}' succesvol toegevoegd! 🎉`);
+          showToast(`✓ Universele Sub-lijst '${newSubName}' succesvol geregistreerd! 🎉`);
           closeAddSublistModal();
           await loadManagerTasks();
           loadJsonExport();
@@ -1626,6 +1661,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const editTaskTitle = document.getElementById('edit-task-title');
   const editTaskList = document.getElementById('edit-task-list');
   const editTaskSublist = document.getElementById('edit-task-sublist');
+  const editTaskTiming = document.getElementById('edit-task-timing');
   const editTaskDue = document.getElementById('edit-task-due');
   const editTaskNotes = document.getElementById('edit-task-notes');
 
@@ -1635,14 +1671,20 @@ document.addEventListener('DOMContentLoaded', () => {
     editTaskListId.value = task.current_list_id;
     editTaskTitle.value = task.title;
     editTaskList.value = task.current_list_title;
-    editTaskNotes.value = task.notes || '';
+    // Schoon notities van tags
+    editTaskNotes.value = task.notes ? task.notes.replace(/\[(.*?)\]\s*/g, '').trim() : '';
 
     const currentSub = extractSublist(task.notes, task.current_list_title, task.title);
     if (editTaskSublist) {
-      editTaskSublist.innerHTML = buildSublistOptions(currentSub, task.current_list_title);
+      editTaskSublist.innerHTML = buildSublistOptions(currentSub);
       editTaskSublist.value = currentSub;
     }
     
+    const currentTiming = extractTiming(task.notes, task.title);
+    if (editTaskTiming) {
+      editTaskTiming.value = currentTiming;
+    }
+
     // Parse date if present: 2026-08-16T00:00:00.000Z -> 2026-08-16
     if (task.due) {
       editTaskDue.value = task.due.substring(0, 10);
@@ -1652,12 +1694,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     editTaskModal.style.display = 'flex';
     editTaskTitle.focus();
-  }
-
-  if (editTaskList && editTaskSublist) {
-    editTaskList.addEventListener('change', () => {
-      editTaskSublist.innerHTML = buildSublistOptions(editTaskSublist.value, editTaskList.value);
-    });
   }
 
   function closeEditTaskModal() {
@@ -1681,6 +1717,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const targetList = editTaskList.value;
       const targetSublist = editTaskSublist ? editTaskSublist.value : null;
+      const timing = editTaskTiming ? editTaskTiming.value : 'los';
       const notes = (editTaskNotes.value || '').trim();
       const due = editTaskDue.value ? editTaskDue.value : null;
 
@@ -1699,7 +1736,8 @@ document.addEventListener('DOMContentLoaded', () => {
             notes: notes,
             due: due,
             target_list_title: targetList,
-            sublist_name: targetSublist
+            sublist_name: targetSublist,
+            timing: timing
           })
         });
 

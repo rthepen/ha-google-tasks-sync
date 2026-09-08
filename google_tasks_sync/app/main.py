@@ -146,6 +146,7 @@ class CreateTaskPayload(BaseModel):
     sublist_name: Optional[str] = None
     notes: Optional[str] = ""
     due: Optional[str] = None
+    timing: Optional[str] = "los"
 
 @app.post("/api/tasks/create")
 async def create_task(payload: CreateTaskPayload):
@@ -155,7 +156,8 @@ async def create_task(payload: CreateTaskPayload):
             list_title=payload.list_title,
             sublist_name=payload.sublist_name,
             notes=payload.notes or "",
-            due=payload.due
+            due=payload.due,
+            timing=payload.timing
         )
         return res
     except Exception as e:
@@ -163,9 +165,9 @@ async def create_task(payload: CreateTaskPayload):
 
 class CreateSublistPayload(BaseModel):
     name: str
-    list_title: str
+    list_title: Optional[str] = None
     category: Optional[str] = "Bouw Projecten"
-    create_folder_task: Optional[bool] = True
+    create_folder_task: Optional[bool] = False
 
 @app.post("/api/sublists/create")
 async def create_sublist(payload: CreateSublistPayload):
@@ -174,7 +176,7 @@ async def create_sublist(payload: CreateSublistPayload):
             name=payload.name,
             list_title=payload.list_title,
             category=payload.category,
-            create_folder_task=payload.create_folder_task
+            create_folder_task=payload.create_folder_task or False
         )
         return res
     except Exception as e:
@@ -188,6 +190,7 @@ class UpdateTaskPayload(BaseModel):
     due: Optional[str] = None
     target_list_title: Optional[str] = None
     sublist_name: Optional[str] = None
+    timing: Optional[str] = None
 
 @app.post("/api/tasks/update")
 async def update_task(payload: UpdateTaskPayload):
@@ -199,7 +202,8 @@ async def update_task(payload: UpdateTaskPayload):
             notes=payload.notes or "",
             due=payload.due,
             target_list_title=payload.target_list_title,
-            sublist_name=payload.sublist_name
+            sublist_name=payload.sublist_name,
+            timing=payload.timing
         )
         return res
     except Exception as e:

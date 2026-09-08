@@ -583,71 +583,119 @@ class SyncEngine:
         tasks_pool.sort(key=lambda x: x.get("title", ""))
         return tasks_pool
 
-    def create_new_sublist(self, name: str, list_title: str, category: Optional[str] = None, create_folder_task: bool = True, account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Maakt een nieuwe sublijst aan en optioneel een '📂 [Naam]' header taak in Google Tasks."""
+    def format_task_notes(self, notes: str = "", sublist: Optional[str] = None, timing: Optional[str] = None) -> str:
+        """Formatteert notities met gestandaardiseerde tags voor sublijst en timing [Vast in tijd] of [Los in tijd]."""
         import re
-        accounts = self.client.get_accounts()
-        if not accounts:
-            raise ValueError("Geen accounts geconfigureerd")
+        clean_notes = (notes or "").strip()
         
-        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
-        tasklists = self.client.list_tasklists(target_account)
-        lists_by_title = {l["title"]: l["id"] for l in tasklists}
-
-        list_id = lists_by_title.get(list_title)
-        if not list_id:
-            new_l = self.client.create_tasklist(target_account, list_title)
-            if new_l:
-                list_id = new_l["id"]
+        existing_sub = None
+        existing_timing = None
+        
+        # Parse alle leidende [...] tags e.g. [01. Bouw - Verwarming] [Vast in tijd]
+        while True:
+            m = re.match(r"^\[(.*?)\]\s*", clean_notes)
+            if not m:
+                break
+            tag_content = m.group(1).strip()
+            t_low = tag_content.lower()
+            if t_low in ["vast in tijd", "vast", "⏰ vast in tijd"]:
+                existing_timing = "vast"
+            elif t_low in ["los in tijd", "los", "⏳ los in tijd"]:
+                existing_timing = "los"
             else:
-                raise ValueError(f"Kon lijst '{list_title}' niet vinden")
+                existing_sub = tag_content
+            clean_notes = clean_notes[m.end():].strip()
+            
+        final_sub = sublist if sublist is not None else existing_sub
+        final_timing = timing if timing is not None else existing_timing
+        
+        clean_sub = (final_sub or "").replace("📂", "").strip()
+        if clean_sub.lower().startswith("alle"):
+            clean_sub = None
+            
+        parts = []
+        if clean_sub:
+            parts.append(f"[{clean_sub}]")
+        if final_timing:
+            ft_low = final_timing.lower()
+            if "vast" in ft_low:
+                parts.append("[Vast in tijd]")
+            elif "los" in ft_low:
+                parts.append("[Los in tijd]")
+                
+        tag_str = " ".join(parts)
+        if tag_str and clean_notes:
+            return f"{tag_str} {clean_notes}".strip()
+        elif tag_str:
+            return tag_str
+        return clean_notes
 
+    def create_new_sublist(self, name: str, list_title: Optional[str] = None, category: Optional[str] = None, create_folder_task: bool = False, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Maakt een nieuwe sublijst definitie aan en optioneel een '📂 [Naam]' header taak in Google Tasks indien een lijst is meegegeven."""
+        import re
         clean_name = name.replace("📂", "").strip()
         if not clean_name:
             raise ValueError("Sub-lijst naam mag niet leeg zijn")
 
-        # Bepaal volgnummer indien niet ingevoerd (bijv. 10. Bouw - Tuin)
-        if not re.match(r"^\d+\.", clean_name):
-            raw_tasks = self.client.list_tasks(target_account, list_id)
-            max_num = 0
-            for t in raw_tasks:
-                tit = t.get("title", "").strip()
-                if tit.startswith("📂 "):
-                    m = re.match(r"^📂\s*(\d+)\.", tit)
-                    if m and int(m.group(1)) > max_num:
-                        max_num = int(m.group(1))
-            next_num = max_num + 1 if max_num > 0 else 1
-            clean_name = f"{next_num:02d}. {clean_name}"
+        accounts = self.client.get_accounts()
+        target_account = account_id if account_id and accounts and account_id in accounts else (list(accounts.keys())[0] if accounts else None)
 
         folder_task_id = None
-        if create_folder_task:
-            folder_title = f"📂 {clean_name}"
-            raw_tasks = self.client.list_tasks(target_account, list_id)
-            for t in raw_tasks:
-                if t.get("title", "").strip() == folder_title:
-                    folder_task_id = t["id"]
-                    break
-            
-            if not folder_task_id:
-                created = self.client.create_task(target_account, list_id, {
-                    "title": folder_title,
-                    "notes": f"Sub-lijst map voor '{clean_name}'",
-                    "status": "needsAction"
-                })
-                if created and "id" in created:
-                    folder_task_id = created["id"]
-                self.log(f"Mapkop '{folder_title}' aangemaakt in Google Tasks lijst '{list_title}'", level="success")
+        # Bepaal volgnummer indien niet ingevoerd (bijv. 10. Bouw - Tuin)
+        if not re.match(r"^\d+\.", clean_name) and target_account and list_title:
+            try:
+                tasklists = self.client.list_tasklists(target_account)
+                lists_by_title = {l["title"]: l["id"] for l in tasklists}
+                list_id = lists_by_title.get(list_title)
+                if list_id:
+                    raw_tasks = self.client.list_tasks(target_account, list_id)
+                    max_num = 0
+                    for t in raw_tasks:
+                        tit = t.get("title", "").strip()
+                        if tit.startswith("📂 "):
+                            m = re.match(r"^📂\s*(\d+)\.", tit)
+                            if m and int(m.group(1)) > max_num:
+                                max_num = int(m.group(1))
+                    next_num = max_num + 1 if max_num > 0 else 1
+                    clean_name = f"{next_num:02d}. {clean_name}"
+            except Exception:
+                pass
 
+        if list_title and create_folder_task and target_account:
+            try:
+                tasklists = self.client.list_tasklists(target_account)
+                lists_by_title = {l["title"]: l["id"] for l in tasklists}
+                list_id = lists_by_title.get(list_title)
+                if list_id:
+                    folder_title = f"📂 {clean_name}"
+                    raw_tasks = self.client.list_tasks(target_account, list_id)
+                    for t in raw_tasks:
+                        if t.get("title", "").strip() == folder_title:
+                            folder_task_id = t["id"]
+                            break
+                    if not folder_task_id:
+                        created = self.client.create_task(target_account, list_id, {
+                            "title": folder_title,
+                            "notes": f"Sub-lijst map voor '{clean_name}'",
+                            "status": "needsAction"
+                        })
+                        if created and "id" in created:
+                            folder_task_id = created["id"]
+                        self.log(f"Mapkop '{folder_title}' aangemaakt in Google Tasks lijst '{list_title}'", level="success")
+            except Exception as e:
+                self.log(f"Optionele mapkop kon niet worden aangemaakt: {e}", level="warning")
+
+        self.log(f"Sub-lijst '{clean_name}' geregistreerd onder categorie '{category or 'Bouw Projecten'}'", level="success")
         return {
             "success": True,
             "sublist_name": clean_name,
-            "list_title": list_title,
+            "list_title": list_title or "Universeel",
             "category": category or "Bouw Projecten",
             "folder_task_id": folder_task_id
         }
         
-    def create_single_task(self, title: str, list_title: str, sublist_name: Optional[str] = None, notes: str = "", due: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Maakt een nieuwe taak aan in de opgegeven hoofdlijst, eventueel gekoppeld aan een sublijst map."""
+    def create_single_task(self, title: str, list_title: str, sublist_name: Optional[str] = None, notes: str = "", due: Optional[str] = None, timing: Optional[str] = "los", account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Maakt een nieuwe taak aan in de opgegeven hoofdlijst, eventueel gekoppeld aan een sublijst map en met timing eigenschap."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts geconfigureerd")
@@ -665,8 +713,6 @@ class SyncEngine:
             else:
                 raise ValueError(f"Kon lijst '{list_title}' niet aanmaken")
 
-        # Format notes with sublist tag if provided
-        final_notes = notes.strip()
         clean_sub_name = (sublist_name or "").replace("📂", "").strip()
 
         # If clean_sub_name is empty, try to deduce from title keywords if in 05. Wisselende Kapiteins
@@ -680,9 +726,8 @@ class SyncEngine:
             else:
                 clean_sub_name = "Wisselend & Gezin"
 
-        if clean_sub_name and not clean_sub_name.lower().startswith("alle"):
-            if not final_notes.startswith("["):
-                final_notes = f"[{clean_sub_name}] {final_notes}".strip()
+        # Formatteer notities met sublijst en timing tags
+        final_notes = self.format_task_notes(notes=notes, sublist=clean_sub_name, timing=timing)
 
         # Check existing tasks in target list for deduplication and parent folder
         raw_existing = self.client.list_tasks(target_account, list_id)
@@ -799,8 +844,8 @@ class SyncEngine:
         self.log(f"Taak '{task_id}' succesvol verwijderd uit lijst '{list_id}'", level="success")
         return {"success": True, "task_id": task_id}
 
-    def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, sublist_name: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Wijzigt titel, notities, deadline of verplaatst een taak naar een andere lijst of sublijst."""
+    def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, sublist_name: Optional[str] = None, timing: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Wijzigt titel, notities, deadline, timing of verplaatst een taak naar een andere lijst of sublijst."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts geconfigureerd")
@@ -810,13 +855,8 @@ class SyncEngine:
         lists_by_title = {l["title"]: l["id"] for l in tasklists}
         lists_by_id = {l["id"]: l["title"] for l in tasklists}
 
-        final_notes = notes.strip()
         clean_sub = (sublist_name or "").replace("📂", "").strip()
-        if clean_sub and not clean_sub.lower().startswith("alle"):
-            if re.match(r"^\[.*?\]", final_notes):
-                final_notes = re.sub(r"^\[.*?\]\s*", f"[{clean_sub}] ", final_notes)
-            else:
-                final_notes = f"[{clean_sub}] {final_notes}".strip()
+        final_notes = self.format_task_notes(notes=notes, sublist=clean_sub if clean_sub else None, timing=timing)
 
         dest_list_id = lists_by_title.get(target_list_title) if target_list_title else list_id
         effective_dest_title = target_list_title or lists_by_id.get(dest_list_id, "Huidige Lijst")
@@ -967,7 +1007,14 @@ class SyncEngine:
             t_notes = m.get("notes", "")
             t_status = m.get("status", "needsAction")
 
-            target_list_id = lists_by_title.get(target_title)
+            target_title = m.get("target_list_title")
+            target_sub = m.get("target_sublist")
+            target_timing = m.get("target_timing")
+            t_title = (m.get("title") or "").strip()
+            t_notes = m.get("notes", "")
+            t_status = m.get("status", "needsAction")
+
+            target_list_id = lists_by_title.get(target_title) if target_title else None
             if not target_list_id and target_title:
                 # Maak lijst aan indien niet bestaand
                 new_l = self.client.create_tasklist(target_account, target_title)
@@ -976,14 +1023,8 @@ class SyncEngine:
                     lists_by_title[target_title] = target_list_id
                     lists_by_id[target_list_id] = target_title
 
-            # Format notes with target_sub if specified
-            final_notes = t_notes.strip()
             clean_sub = (target_sub or "").replace("📂", "").strip()
-            if clean_sub and not clean_sub.lower().startswith("alle"):
-                if re.match(r"^\[.*?\]", final_notes):
-                    final_notes = re.sub(r"^\[.*?\]\s*", f"[{clean_sub}] ", final_notes)
-                else:
-                    final_notes = f"[{clean_sub}] {final_notes}".strip()
+            final_notes = self.format_task_notes(notes=t_notes, sublist=clean_sub if clean_sub else None, timing=target_timing)
 
             # Find matching parent folder in target list if exists
             parent_folder_id = None
@@ -1028,7 +1069,7 @@ class SyncEngine:
                             self.client.move_task(target_account, target_list_id, existing_id, parent_id=parent_folder_id)
                         except Exception:
                             pass
-                    self.log(f"Bestaande taak in '{target_title}' bijgewerkt: '{final_title}' (sub: {clean_sub or 'onveranderd'})")
+                    self.log(f"Bestaande taak in '{target_title}' bijgewerkt: '{final_title}' (sub: {clean_sub or 'onveranderd'}, timing: {target_timing or 'onveranderd'})")
                 else:
                     # Maak aan in nieuwe lijst
                     created = self.client.create_task(target_account, target_list_id, {
@@ -1043,7 +1084,7 @@ class SyncEngine:
                                 self.client.move_task(target_account, target_list_id, created["id"], parent_id=parent_folder_id)
                             except Exception:
                                 pass
-                    self.log(f"Taak '{final_title}' verplaatst naar '{target_title}' (sub: {clean_sub or 'onveranderd'})")
+                    self.log(f"Taak '{final_title}' verplaatst naar '{target_title}' (sub: {clean_sub or 'onveranderd'}, timing: {target_timing or 'onveranderd'})")
 
                 # Verwijder uit oude lijst
                 if t_id and cur_list_id:
@@ -1052,20 +1093,22 @@ class SyncEngine:
                 success_count += 1
                 time.sleep(0.04)
 
-            elif target_list_id and cur_list_id == target_list_id and clean_sub:
-                # Taak blijft in dezelfde lijst maar wisselt van sublijst
-                affected_lists.add((cur_list_id, target_title))
-                self.client.update_task(target_account, cur_list_id, t_id, {
+            elif (target_list_id and cur_list_id == target_list_id) or (not target_title and cur_list_id):
+                # Taak blijft in dezelfde lijst maar wisselt van sublijst, timing of notities
+                effective_lid = target_list_id or cur_list_id
+                effective_ltitle = target_title or lists_by_id.get(effective_lid, "Lijst")
+                affected_lists.add((effective_lid, effective_ltitle))
+                self.client.update_task(target_account, effective_lid, t_id, {
                     "title": final_title,
                     "notes": final_notes,
                     "status": t_status
                 })
                 if parent_folder_id:
                     try:
-                        self.client.move_task(target_account, cur_list_id, t_id, parent_id=parent_folder_id)
+                        self.client.move_task(target_account, effective_lid, t_id, parent_id=parent_folder_id)
                     except Exception:
                         pass
-                self.log(f"Taak '{final_title}' gewijzigd naar sub-lijst '{clean_sub}' in '{target_title}'")
+                self.log(f"Taak '{final_title}' bijgewerkt (sub: {clean_sub or 'onveranderd'}, timing: {target_timing or 'onveranderd'}) in '{effective_ltitle}'")
                 success_count += 1
                 time.sleep(0.04)
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Google Tasks JSON & Kapitein Verdeler | Home Assistant</title>
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.27">
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.28">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -72,6 +72,11 @@
             <select id="manager-filter-sublist" class="filter-select">
               <option value="all">Alle Sub-lijsten</option>
               <!-- Dynamisch gevuld -->
+            </select>
+            <select id="manager-filter-timing" class="filter-select">
+              <option value="all">Alle Timings (Vast & Los)</option>
+              <option value="vast">⏰ Vast in tijd (Extern bepaald)</option>
+              <option value="los">⏳ Los in tijd (Zelf kiezen)</option>
             </select>
           </div>
 
@@ -437,6 +442,16 @@
 
           <div class="form-group">
             <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+              Timing Eigenschap (Vast of Los in tijd):
+            </label>
+            <select id="add-task-timing" class="filter-select" style="width:100%; padding:8px 10px; font-size:13px;">
+              <option value="los" selected>⏳ Los in tijd (Zelf kiezen wanneer je uitvoert)</option>
+              <option value="vast">⏰ Vast in tijd (Extern bepaald, bijv. containers)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
               Deadline / Einddatum (Optioneel):
             </label>
             <input type="date" id="add-task-due" class="search-input" style="width:100%; font-size:13px; padding:7px 12px; color-scheme:dark;">
@@ -484,20 +499,6 @@
 
           <div class="form-group">
             <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
-              Koppel aan Hoofdlijst:
-            </label>
-            <select id="add-sublist-parent-list" class="filter-select" style="width:100%; padding:8px 10px; font-size:13px;" required>
-              <option value="05. Wisselende Kapiteins" selected>05. Wisselende Kapiteins (Aanbevolen)</option>
-              <option value="01. Roy Persoonlijk">01. Roy Persoonlijk</option>
-              <option value="02. Karen Persoonlijk">02. Karen Persoonlijk</option>
-              <option value="03. Kapitein Roy">03. Kapitein Roy</option>
-              <option value="04. Kapitein Karen">04. Kapitein Karen</option>
-              <option value="06. Twee Kapiteins (Samen Doen)">06. Twee Kapiteins (Samen Doen)</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
               Themacategorie:
             </label>
             <select id="add-sublist-category" class="filter-select" style="width:100%; padding:8px 10px; font-size:13px;">
@@ -505,13 +506,9 @@
               <option value="Gezin & Wisselend">🏡 Gezin & Wisselend</option>
               <option value="Zorg, Beheer & Vrije Tijd">⛵ Zorg, Beheer & Vrije Tijd</option>
             </select>
-          </div>
-
-          <div class="form-group" style="margin-top:4px;">
-            <label class="checkbox-item" style="font-size:12.5px; color:var(--text-main); display:flex; align-items:center; gap:8px; cursor:pointer;">
-              <input type="checkbox" id="add-sublist-create-folder" checked style="accent-color:#1f6feb;">
-              <span>Maak een mapkop aan in Google Tasks (<code>📂 [Sub-lijst]</code>)</span>
-            </label>
+            <div style="background:rgba(56,139,253,0.1); border:1px solid rgba(56,139,253,0.25); border-radius:6px; padding:8px 12px; margin-top:10px; font-size:12px; color:#79c0ff; line-height:1.4;">
+              💡 <strong>Universele eigenschap:</strong> Sub-lijsten zijn eigenschappen van taken en zijn niet gekoppeld aan een vaste hoofdlijst. Elke taak in elke lijst kan aan deze sub-lijst worden toegekend.
+            </div>
           </div>
         </form>
       </div>
@@ -572,6 +569,16 @@
                 <!-- Dynamisch gevuld -->
               </select>
             </div>
+          </div>
+
+          <div class="form-group">
+            <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+              Timing Eigenschap (Vast of Los in tijd):
+            </label>
+            <select id="edit-task-timing" class="filter-select" style="width:100%; padding:8px 10px; font-size:13px;">
+              <option value="los">⏳ Los in tijd (Zelf kiezen wanneer je uitvoert)</option>
+              <option value="vast">⏰ Vast in tijd (Extern bepaald, bijv. containers)</option>
+            </select>
           </div>
 
           <div class="form-group">
@@ -690,7 +697,7 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.27">
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.27"></script>
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.28">
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.28"></script>
 </body>
 </html>
