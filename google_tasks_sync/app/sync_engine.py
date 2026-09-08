@@ -863,13 +863,9 @@ class SyncEngine:
                 if not tit or t.get("deleted") or tit.startswith("📂 "):
                     continue
 
-                has_num = bool(re.search(r"^\d+\.", tit)) or bool(re.search(r"-\s*\d+\.", tit))
-                
                 issues = []
                 if is_todo:
                     issues.append("Staat in de 'To do' lijst")
-                if not has_num:
-                    issues.append("Geen volgnummer")
 
                 if issues:
                     # Compute smart suggestions

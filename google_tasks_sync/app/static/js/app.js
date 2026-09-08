@@ -1041,10 +1041,11 @@ document.addEventListener('DOMContentLoaded', () => {
         syncBadge.textContent = 'Klaar';
         syncBadge.className = 'badge';
         appendClientLog('Google Tasks synchronisatie succesvol voltooid!', 'success');
-        setTimeout(() => {
+        setTimeout(async () => {
+          await loadManagerTasks();
           loadJsonExport();
           loadLogsAndStatus();
-        }, 1000);
+        }, 800);
       } else {
         throw new Error(result.error || 'Onbekende fout');
       }
@@ -1060,8 +1061,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function triggerHeaderSyncNow() {
+    if (!btnSyncNow) return;
+    btnSyncNow.disabled = true;
+    showToast('Bezig met synchroniseren met Google Tasks...');
+    try {
+      const moves = Object.values(pendingReassignments);
+      if (moves.length > 0) {
+        await fetch(`${rootPath}/api/tasks/reassign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ moves })
+        });
+        pendingReassignments = {};
+        updatePendingBadge();
+      }
+
+      await fetch(`${rootPath}/api/sync/now`, { method: 'POST' });
+      showToast('Google Tasks synchronisatie succesvol voltooid! 🚀');
+      await loadManagerTasks();
+      loadJsonExport();
+      loadLogsAndStatus();
+    } catch (e) {
+      showToast('Fout bij syncen: ' + e.message, true);
+    } finally {
+      btnSyncNow.disabled = false;
+    }
+  }
+
   if (btnApplyJson) btnApplyJson.addEventListener('click', applyJsonToGoogle);
-  if (btnSyncNow) btnSyncNow.addEventListener('click', applyJsonToGoogle);
+  if (btnSyncNow) btnSyncNow.addEventListener('click', triggerHeaderSyncNow);
 
   // Initial loads
   loadManagerTasks();
@@ -1424,8 +1453,74 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- STAP 5: Finale Summary & Google Tasks Apply ---
+  // --- STAP 5: Finale Summary, Voor/Na Vergelijking, Onderhandelen & Export ---
   function renderStep5Finale() {
+    // 1. Oorspronkelijke situatie (Hoe het was)
+    const royWasTasks = averageScores.filter(t => (t.current_list_title || '').toLowerCase().includes('roy'));
+    const karenWasTasks = averageScores.filter(t => (t.current_list_title || '').toLowerCase().includes('karen'));
+    const royWasPts = royWasTasks.reduce((sum, t) => sum + (t.avgPts || 0), 0);
+    const karenWasPts = karenWasTasks.reduce((sum, t) => sum + (t.avgPts || 0), 0);
+    const wasDiff = Math.abs(royWasPts - karenWasPts);
+
+    const compWasRoyPts = document.getElementById('comp-was-roy-pts');
+    const compWasRoyCount = document.getElementById('comp-was-roy-count');
+    const compWasKarenPts = document.getElementById('comp-was-karen-pts');
+    const compWasKarenCount = document.getElementById('comp-was-karen-count');
+    const compWasDiff = document.getElementById('comp-was-diff');
+
+    if (compWasRoyPts) compWasRoyPts.textContent = `${royWasPts.toFixed(1)} pt`;
+    if (compWasRoyCount) compWasRoyCount.textContent = `${royWasTasks.length} taken`;
+    if (compWasKarenPts) compWasKarenPts.textContent = `${karenWasPts.toFixed(1)} pt`;
+    if (compWasKarenCount) compWasKarenCount.textContent = `${karenWasTasks.length} taken`;
+    if (compWasDiff) compWasDiff.textContent = `Verschil: ${wasDiff.toFixed(1)} pt (${royWasPts > karenWasPts ? 'Roy had meer' : (karenWasPts > royWasPts ? 'Karen had meer' : 'Gelijk')})`;
+
+    // 2. Nieuwe situatie (Hoe het wordt na keuzeronde & onderhandeling)
+    royTotalScore = royChosenTasks.reduce((sum, t) => sum + (t.avgPts || 0), 0);
+    karenTotalScore = karenChosenTasks.reduce((sum, t) => sum + (t.avgPts || 0), 0);
+    const wordtDiff = Math.abs(royTotalScore - karenTotalScore);
+
+    const compWordtRoyPts = document.getElementById('comp-wordt-roy-pts');
+    const compWordtRoyCount = document.getElementById('comp-wordt-roy-count');
+    const compWordtKarenPts = document.getElementById('comp-wordt-karen-pts');
+    const compWordtKarenCount = document.getElementById('comp-wordt-karen-count');
+    const compWordtDiff = document.getElementById('comp-wordt-diff');
+
+    if (compWordtRoyPts) compWordtRoyPts.textContent = `${royTotalScore.toFixed(1)} pt`;
+    if (compWordtRoyCount) compWordtRoyCount.textContent = `${royChosenTasks.length} taken`;
+    if (compWordtKarenPts) compWordtKarenPts.textContent = `${karenTotalScore.toFixed(1)} pt`;
+    if (compWordtKarenCount) compWordtKarenCount.textContent = `${karenChosenTasks.length} taken`;
+    if (compWordtDiff) {
+      if (wordtDiff === 0) {
+        compWordtDiff.textContent = '✨ Perfect in balans! (0.0 pt verschil)';
+        compWordtDiff.style.color = '#3fb950';
+      } else {
+        const leader = royTotalScore > karenTotalScore ? 'Roy' : 'Karen';
+        compWordtDiff.textContent = `Verschil: ${wordtDiff.toFixed(1)} pt (${leader} heeft iets meer)`;
+        compWordtDiff.style.color = '#8b949e';
+      }
+    }
+
+    // 3. Verschuivingen / Ruilingen
+    const shiftedToKaren = karenChosenTasks.filter(t => (t.current_list_title || '').toLowerCase().includes('roy'));
+    const shiftedToRoy = royChosenTasks.filter(t => (t.current_list_title || '').toLowerCase().includes('karen'));
+    const shiftsBox = document.getElementById('shifts-summary-content');
+
+    if (shiftsBox) {
+      if (shiftedToKaren.length === 0 && shiftedToRoy.length === 0) {
+        shiftsBox.innerHTML = '<div style="color:var(--text-muted); font-style:italic;">Geen taken gewisseld van kapitein ten opzichte van de oorspronkelijke lijst.</div>';
+      } else {
+        let shiftsHtml = '';
+        if (shiftedToKaren.length > 0) {
+          shiftsHtml += `<div style="margin-bottom:4px;"><strong style="color:var(--karen-color);">➔ Overgedragen aan Karen (${shiftedToKaren.length}):</strong> ${shiftedToKaren.map(t => `<span class="tag" style="margin:2px 4px; font-size:11px;">${escapeHtml(t.title)} (${t.avgPts} pt)</span>`).join('')}</div>`;
+        }
+        if (shiftedToRoy.length > 0) {
+          shiftsHtml += `<div><strong style="color:var(--roy-color);">➔ Overgedragen aan Roy (${shiftedToRoy.length}):</strong> ${shiftedToRoy.map(t => `<span class="tag" style="margin:2px 4px; font-size:11px;">${escapeHtml(t.title)} (${t.avgPts} pt)</span>`).join('')}</div>`;
+        }
+        shiftsBox.innerHTML = shiftsHtml;
+      }
+    }
+
+    // 4. Finale lijsten met Onderhandel-knoppen (wisselen tussen Roy en Karen)
     const royStats = document.getElementById('final-roy-stats');
     if (royStats) royStats.textContent = `${royChosenTasks.length} taken | ${royTotalScore.toFixed(1)} pt`;
 
@@ -1434,28 +1529,218 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const royList = document.getElementById('final-roy-list');
     if (royList) {
-      royList.innerHTML = royChosenTasks.map(i => `
-        <li>
-          <span>${i.title}</span>
-          <strong style="color:var(--roy-color)">${i.avgPts} pt</strong>
-        </li>
-      `).join('');
+      royList.innerHTML = royChosenTasks.map(i => {
+        const wasKaren = (i.current_list_title || '').toLowerCase().includes('karen');
+        const originTag = wasKaren 
+          ? '<span class="tag" style="font-size:10px; color:var(--karen-color); background:rgba(219,97,162,0.15);">Was van Karen</span>' 
+          : '<span class="tag" style="font-size:10px; color:var(--text-muted);">Origineel Roy</span>';
+
+        return `
+          <li>
+            <div class="final-task-info">
+              <span class="final-task-title">${escapeHtml(i.title)}</span>
+              <span class="final-task-origin">${originTag} ${i.notes ? `· ${escapeHtml(i.notes)}` : ''}</span>
+            </div>
+            <div class="final-task-controls">
+              <strong style="color:var(--roy-color); font-family:var(--font-mono); font-size:13px;">${i.avgPts} pt</strong>
+              <button class="btn-trade-task btn-trade-to-karen" data-title="${escapeHtml(i.title)}" title="Draag over aan Karen (onderhandelen)">
+                ⇄ Naar Karen
+              </button>
+            </div>
+          </li>
+        `;
+      }).join('');
+
+      royList.querySelectorAll('.btn-trade-to-karen').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tTitle = btn.dataset.title;
+          const idx = royChosenTasks.findIndex(i => i.title === tTitle);
+          if (idx !== -1) {
+            const [moved] = royChosenTasks.splice(idx, 1);
+            karenChosenTasks.push(moved);
+            showToast(`Taak '${moved.title}' overgedragen aan Karen (${moved.avgPts} pt)`);
+            renderStep5Finale();
+          }
+        });
+      });
     }
 
     const karenList = document.getElementById('final-karen-list');
     if (karenList) {
-      karenList.innerHTML = karenChosenTasks.map(i => `
-        <li>
-          <span>${i.title}</span>
-          <strong style="color:var(--karen-color)">${i.avgPts} pt</strong>
-        </li>
-      `).join('');
+      karenList.innerHTML = karenChosenTasks.map(i => {
+        const wasRoy = (i.current_list_title || '').toLowerCase().includes('roy');
+        const originTag = wasRoy 
+          ? '<span class="tag" style="font-size:10px; color:var(--roy-color); background:rgba(88,166,255,0.15);">Was van Roy</span>' 
+          : '<span class="tag" style="font-size:10px; color:var(--text-muted);">Origineel Karen</span>';
+
+        return `
+          <li>
+            <div class="final-task-info">
+              <span class="final-task-title">${escapeHtml(i.title)}</span>
+              <span class="final-task-origin">${originTag} ${i.notes ? `· ${escapeHtml(i.notes)}` : ''}</span>
+            </div>
+            <div class="final-task-controls">
+              <strong style="color:var(--karen-color); font-family:var(--font-mono); font-size:13px;">${i.avgPts} pt</strong>
+              <button class="btn-trade-task btn-trade-to-roy" data-title="${escapeHtml(i.title)}" title="Draag over aan Roy (onderhandelen)">
+                ⇄ Naar Roy
+              </button>
+            </div>
+          </li>
+        `;
+      }).join('');
+
+      karenList.querySelectorAll('.btn-trade-to-roy').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tTitle = btn.dataset.title;
+          const idx = karenChosenTasks.findIndex(i => i.title === tTitle);
+          if (idx !== -1) {
+            const [moved] = karenChosenTasks.splice(idx, 1);
+            royChosenTasks.push(moved);
+            showToast(`Taak '${moved.title}' overgedragen aan Roy (${moved.avgPts} pt)`);
+            renderStep5Finale();
+          }
+        });
+      });
     }
   }
 
   const btnStep5Prev = document.getElementById('btn-step-5-prev-final');
   if (btnStep5Prev) {
     btnStep5Prev.addEventListener('click', () => setWizardStep(4));
+  }
+
+  // PDF Export voor Kapitein Verdeler Eindrapport
+  const btnExportDividerPdf = document.getElementById('btn-export-divider-pdf');
+  if (btnExportDividerPdf) {
+    btnExportDividerPdf.addEventListener('click', () => {
+      const printableArea = document.getElementById('printable-area');
+      if (!printableArea) {
+        window.print();
+        return;
+      }
+
+      // Bereken stats
+      const royWasTasks = averageScores.filter(t => (t.current_list_title || '').toLowerCase().includes('roy'));
+      const karenWasTasks = averageScores.filter(t => (t.current_list_title || '').toLowerCase().includes('karen'));
+      const royWasPts = royWasTasks.reduce((sum, t) => sum + (t.avgPts || 0), 0);
+      const karenWasPts = karenWasTasks.reduce((sum, t) => sum + (t.avgPts || 0), 0);
+      const wasDiff = Math.abs(royWasPts - karenWasPts);
+
+      const royWordtPts = royChosenTasks.reduce((sum, t) => sum + (t.avgPts || 0), 0);
+      const karenWordtPts = karenChosenTasks.reduce((sum, t) => sum + (t.avgPts || 0), 0);
+      const wordtDiff = Math.abs(royWordtPts - karenWordtPts);
+
+      const shiftedToKaren = karenChosenTasks.filter(t => (t.current_list_title || '').toLowerCase().includes('roy'));
+      const shiftedToRoy = royChosenTasks.filter(t => (t.current_list_title || '').toLowerCase().includes('karen'));
+
+      const datumStr = new Date().toLocaleDateString('nl-NL', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      });
+
+      let shiftsHtml = '';
+      if (shiftedToKaren.length === 0 && shiftedToRoy.length === 0) {
+        shiftsHtml = '<em>Geen taken gewisseld van eigenaar.</em>';
+      } else {
+        if (shiftedToKaren.length > 0) {
+          shiftsHtml += `<p style="margin:2px 0;"><strong>➔ Naar Karen overgedragen (${shiftedToKaren.length}):</strong> ${shiftedToKaren.map(t => `${escapeHtml(t.title)} (${t.avgPts} pt)`).join(', ')}</p>`;
+        }
+        if (shiftedToRoy.length > 0) {
+          shiftsHtml += `<p style="margin:2px 0;"><strong>➔ Naar Roy overgedragen (${shiftedToRoy.length}):</strong> ${shiftedToRoy.map(t => `${escapeHtml(t.title)} (${t.avgPts} pt)`).join(', ')}</p>`;
+        }
+      }
+
+      const reportHtml = `
+        <div class="pdf-divider-sheet">
+          <div class="pdf-divider-header">
+            <div>
+              <h1>⚖️ Kapitein Verdeler: Eindrapport & Taakverdeling</h1>
+              <p>Overzicht van de taakverdeling tussen Kapitein Roy & Kapitein Karen</p>
+            </div>
+            <div style="text-align:right;">
+              <strong style="font-size:11pt; color:#1e293b;">${datumStr}</strong>
+              <p>Totaal taken: ${averageScores.length} | Totaal punten: ${(royWordtPts + karenWordtPts).toFixed(1)} pt</p>
+            </div>
+          </div>
+
+          <!-- Vergelijking Hoe het was vs Hoe het wordt -->
+          <div class="pdf-comparison-box">
+            <div class="pdf-stat-card">
+              <h3>⏮️ Hoe het was (Oorspronkelijk)</h3>
+              <div class="pdf-stat-row">
+                <div><strong>Roy:</strong> ${royWasTasks.length} taken (${royWasPts.toFixed(1)} pt)</div>
+                <div><strong>Karen:</strong> ${karenWasTasks.length} taken (${karenWasPts.toFixed(1)} pt)</div>
+              </div>
+              <div style="font-size:9.5pt; color:#64748b; margin-top:6px; text-align:center;">
+                Verschil: ${wasDiff.toFixed(1)} pt
+              </div>
+            </div>
+
+            <div class="pdf-stat-card new-balance">
+              <h3 style="color:#15803d;">⏭️ Hoe het wordt (Nieuwe Verdeling)</h3>
+              <div class="pdf-stat-row">
+                <div><strong style="color:#1d4ed8;">Roy:</strong> ${royChosenTasks.length} taken (${royWordtPts.toFixed(1)} pt)</div>
+                <div><strong style="color:#be185d;">Karen:</strong> ${karenChosenTasks.length} taken (${karenWordtPts.toFixed(1)} pt)</div>
+              </div>
+              <div style="font-size:9.5pt; color:#15803d; font-weight:700; margin-top:6px; text-align:center;">
+                Verschil: ${wordtDiff.toFixed(1)} pt (Evenwicht bereikt)
+              </div>
+            </div>
+          </div>
+
+          <!-- Verschuivingen -->
+          <div class="pdf-shifts-box">
+            <strong style="font-size:10.5pt; color:#1e40af; display:block; margin-bottom:4px;">🔄 Resultaat van de Keuzeronde & Onderhandelingen:</strong>
+            ${shiftsHtml}
+          </div>
+
+          <!-- Gedetailleerde Taaklijsten per Kapitein -->
+          <div class="pdf-captain-columns">
+            <div class="pdf-captain-col">
+              <div class="pdf-captain-title roy">
+                <span>03. Kapitein Roy</span>
+                <span>${royChosenTasks.length} taken | ${royWordtPts.toFixed(1)} pt</span>
+              </div>
+              <table class="pdf-task-table">
+                ${royChosenTasks.map((t, idx) => `
+                  <tr>
+                    <td style="width:24px; color:#64748b;">${idx + 1}.</td>
+                    <td>
+                      <strong>${escapeHtml(t.title)}</strong>
+                      ${t.notes ? `<div style="font-size:8.5pt; color:#64748b;">${escapeHtml(t.notes)}</div>` : ''}
+                    </td>
+                    <td style="width:50px; text-align:right; font-weight:700; color:#1d4ed8;">${t.avgPts} pt</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </div>
+
+            <div class="pdf-captain-col">
+              <div class="pdf-captain-title karen">
+                <span>04. Kapitein Karen</span>
+                <span>${karenChosenTasks.length} taken | ${karenWordtPts.toFixed(1)} pt</span>
+              </div>
+              <table class="pdf-task-table">
+                ${karenChosenTasks.map((t, idx) => `
+                  <tr>
+                    <td style="width:24px; color:#64748b;">${idx + 1}.</td>
+                    <td>
+                      <strong>${escapeHtml(t.title)}</strong>
+                      ${t.notes ? `<div style="font-size:8.5pt; color:#64748b;">${escapeHtml(t.notes)}</div>` : ''}
+                    </td>
+                    <td style="width:50px; text-align:right; font-weight:700; color:#be185d;">${t.avgPts} pt</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+
+      printableArea.innerHTML = reportHtml;
+      window.print();
+    });
   }
 
   const btnApplyDivision = document.getElementById('btn-apply-division-google');
@@ -1491,6 +1776,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast('Kapiteinstaken succesvol verdeeld en gesynchroniseerd met Google Tasks! 🎉');
           btnApplyDivision.textContent = '✓ Gesynchroniseerd met Google Tasks!';
           btnApplyDivision.style.background = '#238636';
+          await loadManagerTasks();
           loadJsonExport();
         } else {
           throw new Error(data.error || 'Onbekende fout');

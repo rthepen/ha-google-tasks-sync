@@ -334,27 +334,30 @@
 
           <!-- Draft Arena (actief tijdens kiezen) -->
           <div id="draft-arena" style="display:none;">
-            <div class="turn-banner" id="turn-banner">
-              <span id="turn-badge" class="badge">Aan de beurt</span>
-              <strong id="turn-text">Karen mag kiezen</strong>
-              <small id="turn-subtext">Kies een taak. De beurt wisselt zodra de ander minder punten heeft.</small>
-            </div>
+            <!-- Sticky header met puntenstand en wie er aan de beurt is -->
+            <div class="draft-sticky-bar" id="draft-sticky-bar">
+              <div class="turn-banner" id="turn-banner">
+                <span id="turn-badge" class="badge">Aan de beurt</span>
+                <strong id="turn-text">Karen mag kiezen</strong>
+                <small id="turn-subtext">Kies een taak. De beurt wisselt zodra de ander minder punten heeft.</small>
+              </div>
 
-            <!-- Balans Meter -->
-            <div class="balance-container">
-              <div class="player-score roy">
-                <span class="player-name">Roy</span>
-                <span class="player-pts" id="roy-current-pts">0 pt</span>
-                <span class="player-count" id="roy-tasks-count">0 taken</span>
-              </div>
-              <div class="balance-visual">
-                <div class="balance-fill-roy" id="balance-fill-roy" style="width: 50%;"></div>
-                <div class="balance-fill-karen" id="balance-fill-karen" style="width: 50%;"></div>
-              </div>
-              <div class="player-score karen">
-                <span class="player-name">Karen</span>
-                <span class="player-pts" id="karen-current-pts">0 pt</span>
-                <span class="player-count" id="karen-tasks-count">0 taken</span>
+              <!-- Balans Meter -->
+              <div class="balance-container">
+                <div class="player-score roy">
+                  <span class="player-name">Roy</span>
+                  <span class="player-pts" id="roy-current-pts">0 pt</span>
+                  <span class="player-count" id="roy-tasks-count">0 taken</span>
+                </div>
+                <div class="balance-visual">
+                  <div class="balance-fill-roy" id="balance-fill-roy" style="width: 50%;"></div>
+                  <div class="balance-fill-karen" id="balance-fill-karen" style="width: 50%;"></div>
+                </div>
+                <div class="player-score karen">
+                  <span class="player-name">Karen</span>
+                  <span class="player-pts" id="karen-current-pts">0 pt</span>
+                  <span class="player-count" id="karen-tasks-count">0 taken</span>
+                </div>
               </div>
             </div>
 
@@ -383,18 +386,78 @@
           </div>
         </div>
 
-        <!-- STAP 5: Eindoverzicht & Syncen naar Google Tasks -->
+        <!-- STAP 5: Eindoverzicht, Onderhandelen & Syncen naar Google Tasks -->
         <div class="wizard-step-content" id="step-5-content" style="display:none;">
           <div class="step-header">
-            <h2>Stap 5: Eindoverzicht & Synchronisatie</h2>
-            <p>Alle taken zijn verdeeld! Controleer hieronder het resultaat en synchroniseer direct naar Google Tasks.</p>
+            <h2>Stap 5: Eindoverzicht, Onderhandelen & Export</h2>
+            <p>Alle taken zijn verdeeld! Bekijk de vergelijking van hoe het was versus hoe het wordt. Je kunt taken nog direct aan elkaar toewijzen (onderhandelen), exporteren naar PDF of definitief syncen naar Google Tasks.</p>
           </div>
 
+          <!-- Voor vs Na Vergelijking (Hoe het was vs Hoe het wordt) -->
+          <div class="comparison-container" id="division-comparison-container">
+            <div class="comparison-grid">
+              <div class="comparison-card was-card">
+                <div class="comp-card-header">
+                  <h4>⏮️ Hoe het was (Oorspronkelijk)</h4>
+                  <span class="badge" id="comp-was-badge" style="background:#21262d; color:#8b949e;">Originele verdeling</span>
+                </div>
+                <div class="comp-stats-row">
+                  <div class="comp-player-stat">
+                    <span class="comp-name" style="color:var(--roy-color);">Roy</span>
+                    <strong class="comp-val" id="comp-was-roy-pts">0 pt</strong>
+                    <span class="comp-sub" id="comp-was-roy-count">0 taken</span>
+                  </div>
+                  <div class="comp-vs">vs</div>
+                  <div class="comp-player-stat">
+                    <span class="comp-name" style="color:var(--karen-color);">Karen</span>
+                    <strong class="comp-val" id="comp-was-karen-pts">0 pt</strong>
+                    <span class="comp-sub" id="comp-was-karen-count">0 taken</span>
+                  </div>
+                </div>
+                <div class="comp-diff-label" id="comp-was-diff">Verschil: 0 pt</div>
+              </div>
+
+              <div class="comparison-card wordt-card">
+                <div class="comp-card-header">
+                  <h4>⏭️ Hoe het wordt (Nieuwe Verdeling)</h4>
+                  <span class="badge" id="comp-wordt-badge" style="background:rgba(46,160,67,0.2); color:#3fb950;">Nieuw evenwicht</span>
+                </div>
+                <div class="comp-stats-row">
+                  <div class="comp-player-stat">
+                    <span class="comp-name" style="color:var(--roy-color);">Roy</span>
+                    <strong class="comp-val" id="comp-wordt-roy-pts">0 pt</strong>
+                    <span class="comp-sub" id="comp-wordt-roy-count">0 taken</span>
+                  </div>
+                  <div class="comp-vs">vs</div>
+                  <div class="comp-player-stat">
+                    <span class="comp-name" style="color:var(--karen-color);">Karen</span>
+                    <strong class="comp-val" id="comp-wordt-karen-pts">0 pt</strong>
+                    <span class="comp-sub" id="comp-wordt-karen-count">0 taken</span>
+                  </div>
+                </div>
+                <div class="comp-diff-label" id="comp-wordt-diff">Verschil: 0 pt (Evenwicht)</div>
+              </div>
+            </div>
+
+            <!-- Overzicht van Verschuivingen (Wie ruilde wat met wie) -->
+            <div class="shifts-summary-box" id="shifts-summary-box">
+              <div style="font-size:12.5px; font-weight:700; margin-bottom:8px; color:var(--text-main); display:flex; align-items:center; gap:6px;">
+                <span>🔄 Overzicht van Verschuivingen & Onderhandelingen:</span>
+              </div>
+              <div id="shifts-summary-content"></div>
+            </div>
+          </div>
+
+          <!-- Lijsten met taken per Kapitein & Onderhandelen (wisselknop) -->
           <div class="final-summary-grid">
             <div class="final-card roy">
               <div class="final-card-header">
                 <h3>03. Kapitein Roy</h3>
                 <span class="badge" id="final-roy-stats">0 taken | 0 pt</span>
+              </div>
+              <div class="negotiate-header-hint">
+                <span>Taak</span>
+                <span>Punten & Onderhandelen</span>
               </div>
               <ul class="final-tasks-list" id="final-roy-list"></ul>
             </div>
@@ -404,16 +467,26 @@
                 <h3>04. Kapitein Karen</h3>
                 <span class="badge" id="final-karen-stats">0 taken | 0 pt</span>
               </div>
+              <div class="negotiate-header-hint">
+                <span>Taak</span>
+                <span>Punten & Onderhandelen</span>
+              </div>
               <ul class="final-tasks-list" id="final-karen-list"></ul>
             </div>
           </div>
 
-          <div class="step-actions finale">
+          <div class="step-actions finale" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-top:20px;">
             <button class="btn btn-outline" id="btn-step-5-prev-final">⬅ Terug naar Keuzeronde</button>
-            <button class="btn btn-success btn-lg" id="btn-apply-division-google">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-              Toepassen & Syncen naar Google Tasks! 🚀
-            </button>
+            <div style="display:flex; gap:12px; align-items:center;">
+              <button class="btn btn-outline" id="btn-export-divider-pdf" style="font-weight:600; border-color:#388bfd; color:#58a6ff;" title="Exporteer definitieve verdeling en voor/na vergelijking naar PDF">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                📄 Exporteer naar PDF
+              </button>
+              <button class="btn btn-success btn-lg" id="btn-apply-division-google">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                Toepassen & Syncen naar Google Tasks! 🚀
+              </button>
+            </div>
           </div>
         </div>
 

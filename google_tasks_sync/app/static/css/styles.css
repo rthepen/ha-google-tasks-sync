@@ -1064,6 +1064,23 @@ html, body {
 
 .starter-btns { display: flex; gap: 16px; }
 
+.draft-sticky-bar {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  background: rgba(13, 17, 23, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .turn-banner {
   display: flex;
   align-items: center;
@@ -1087,7 +1104,7 @@ html, body {
   border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 10px 16px;
-  margin: 6px 0;
+  margin: 0;
 }
 
 .player-score {
@@ -1222,6 +1239,118 @@ html, body {
   border-bottom: 1px solid var(--border-color);
 }
 
+/* Step 5: Comparison & Negotiate */
+.comparison-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.comparison-card {
+  background: #090d13;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comparison-card.was-card {
+  border-left: 4px solid #8b949e;
+}
+
+.comparison-card.wordt-card {
+  border-left: 4px solid #3fb950;
+  background: linear-gradient(135deg, rgba(46, 160, 67, 0.08), #090d13);
+}
+
+.comp-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.comp-card-header h4 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.comp-stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 8px 0;
+}
+
+.comp-player-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.comp-name {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.comp-val {
+  font-size: 20px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--text-main);
+}
+
+.comp-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.comp-vs {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.comp-diff-label {
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #161b22;
+  color: var(--text-muted);
+}
+
+.shifts-summary-box {
+  background: #090d13;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.negotiate-header-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 10px 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed #21262d;
+  margin-bottom: 6px;
+}
+
 .final-tasks-list {
   flex: 1;
   overflow-y: auto;
@@ -1232,12 +1361,69 @@ html, body {
 }
 
 .final-tasks-list li {
-  padding: 6px 10px;
+  padding: 8px 12px;
   background: #161b22;
-  border-radius: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   font-size: 12.5px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.final-tasks-list li:hover {
+  background: #1c2128;
+  border-color: var(--border-color);
+}
+
+.final-task-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.final-task-title {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.final-task-origin {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.final-task-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-trade-task {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: #21262d;
+  color: var(--text-main);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-trade-task:hover {
+  background: #30363d;
+  border-color: var(--accent);
+  color: #58a6ff;
+  transform: translateY(-1px);
 }
 
 .step-actions {
@@ -1641,5 +1827,143 @@ html, body {
     border-left: 3px solid #2563eb !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  /* Kapitein Verdeler PDF Eindrapport Styles */
+  .pdf-divider-sheet {
+    padding: 12mm 15mm;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #0f172a;
+    background: #ffffff !important;
+  }
+
+  .pdf-divider-header {
+    border-bottom: 3px solid #1e40af;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .pdf-divider-header h1 {
+    font-size: 20pt;
+    font-weight: 800;
+    color: #1e3a8a;
+    margin: 0 0 4px 0;
+  }
+
+  .pdf-divider-header p {
+    font-size: 10pt;
+    color: #475569;
+    margin: 0;
+  }
+
+  .pdf-comparison-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 16px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .pdf-stat-card {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .pdf-stat-card.new-balance {
+    border: 2px solid #16a34a;
+    background: #f0fdf4 !important;
+  }
+
+  .pdf-stat-card h3 {
+    font-size: 11pt;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: #0f172a;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 4px;
+  }
+
+  .pdf-stat-row {
+    display: flex;
+    justify-content: space-around;
+    font-size: 10.5pt;
+  }
+
+  .pdf-shifts-box {
+    border: 1px solid #93c5fd;
+    background: #eff6ff !important;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+    font-size: 10pt;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .pdf-captain-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .pdf-captain-col {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    overflow: hidden;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .pdf-captain-title {
+    padding: 8px 12px;
+    font-size: 11pt;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .pdf-captain-title.roy {
+    background: #dbeafe !important;
+    color: #1e40af;
+    border-bottom: 2px solid #3b82f6;
+  }
+
+  .pdf-captain-title.karen {
+    background: #fce7f3 !important;
+    color: #9d174d;
+    border-bottom: 2px solid #ec4899;
+  }
+
+  .pdf-task-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+  }
+
+  .pdf-task-table tr {
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .pdf-task-table tr:nth-child(even) {
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .pdf-task-table td {
+    padding: 6px 10px;
+    vertical-align: top;
   }
 }
