@@ -293,6 +293,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) throw new Error('Kon taken niet ophalen');
       const data = await res.json();
       const rawTasks = data.tasks || [];
+      const serverCats = data.categories || [];
+      serverCats.forEach(c => customCategories.add(cleanCategoryName(c)));
+
       // Filter out folder header tasks so only real tasks appear in the list and strip numbers from titles
       managerTasks = rawTasks.filter(t => !t.title.startsWith('📂 ')).map(t => {
         t.title = extractCleanTitle(t.title);
@@ -303,14 +306,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const openCount = managerTasks.length - completedCount;
       managerStatsTag.textContent = `${managerTasks.length} taken (${openCount} open, ${completedCount} voltooid)`;
       
-      // Update sublist filter options
+      // Update sublist filter options (bevat alle categorieën, inclusief nieuw aangemaakte)
       const allSublists = new Set();
+      defaultCategories.forEach(c => allSublists.add(cleanCategoryName(c)));
+      customCategories.forEach(c => allSublists.add(cleanCategoryName(c)));
       managerTasks.forEach(t => {
-        allSublists.add(extractSublist(t.notes, t.current_list_title, t.title));
+        const s = extractSublist(t.notes, t.current_list_title, t.title);
+        if (s) allSublists.add(cleanCategoryName(s));
       });
       
+      const prevSub = managerFilterSublist.value;
       managerFilterSublist.innerHTML = '<option value="all">📂 Alle Categorieën</option>' + 
-        Array.from(allSublists).sort(naturalSort).map(s => `<option value="${s}">📂 ${s}</option>`).join('');
+        Array.from(allSublists).filter(Boolean).sort(naturalSort).map(s => `<option value="${s}" ${s === prevSub ? 'selected' : ''}>📂 ${s}</option>`).join('');
 
       renderManagerTable();
     } catch (e) {
@@ -1890,7 +1897,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseAddSublistModal = document.getElementById('btn-close-add-sublist-modal');
   const btnCancelAddSublist = document.getElementById('btn-cancel-add-sublist');
   const btnSubmitAddSublist = document.getElementById('btn-submit-add-sublist');
-
+  const addSublistForm = document.getElementById('add-sublist-form');
   const addSublistName = document.getElementById('add-sublist-name');
 
   function openAddSublistModal() {
@@ -1908,53 +1915,61 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnCloseAddSublistModal) btnCloseAddSublistModal.addEventListener('click', closeAddSublistModal);
   if (btnCancelAddSublist) btnCancelAddSublist.addEventListener('click', closeAddSublistModal);
 
-  if (btnSubmitAddSublist) {
-    btnSubmitAddSublist.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const rawName = cleanCategoryName((addSublistName.value || '').trim());
-      if (!rawName) {
-        showToast('Vul een categorie naam in!', true);
-        if (addSublistName) addSublistName.focus();
-        return;
-      }
+  async function handleAddSublistSubmit(e) {
+    if (e) e.preventDefault();
+    const rawName = cleanCategoryName((addSublistName.value || '').trim());
+    if (!rawName) {
+      showToast('Vul een categorie naam in!', true);
+      if (addSublistName) addSublistName.focus();
+      return;
+    }
 
+    if (btnSubmitAddSublist) {
       btnSubmitAddSublist.disabled = true;
       btnSubmitAddSublist.textContent = 'Bezig met aanmaken...';
-      showToast('Nieuwe categorie aanmaken...');
+    }
+    showToast('Nieuwe categorie aanmaken...');
 
-      try {
-        const res = await fetch(`${rootPath}/api/sublists/create`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: rawName,
-            create_folder_task: false
-          })
-        });
+    try {
+      const res = await fetch(`${rootPath}/api/sublists/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: rawName,
+          create_folder_task: false
+        })
+      });
 
-        const data = await res.json();
-        if (data.success) {
-          const newSubName = data.sublist_name || rawName;
-          customCategories.add(cleanCategoryName(newSubName));
-
-          showToast(`✓ Categorie '${newSubName}' succesvol toegevoegd! 🎉`);
-          closeAddSublistModal();
-          await loadManagerTasks();
-          loadJsonExport();
-        } else {
-          throw new Error(data.detail || data.error || 'Fout bij aanmaken');
+      const data = await res.json();
+      if (data.success) {
+        const newSubName = data.sublist_name || rawName;
+        customCategories.add(cleanCategoryName(newSubName));
+        if (data.categories && Array.isArray(data.categories)) {
+          data.categories.forEach(c => customCategories.add(cleanCategoryName(c)));
         }
-      } catch (err) {
-        showToast('Fout: ' + err.message, true);
-      } finally {
+
+        showToast(`✓ Categorie '${newSubName}' succesvol toegevoegd! 🎉`);
+        closeAddSublistModal();
+        await loadManagerTasks();
+        loadJsonExport();
+      } else {
+        throw new Error(data.detail || data.error || 'Fout bij aanmaken');
+      }
+    } catch (err) {
+      showToast('Fout: ' + err.message, true);
+    } finally {
+      if (btnSubmitAddSublist) {
         btnSubmitAddSublist.disabled = false;
         btnSubmitAddSublist.innerHTML = `
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
           Categorie Aanmaken 🚀
         `;
       }
-    });
+    }
   }
+
+  if (addSublistForm) addSublistForm.addEventListener('submit', handleAddSublistSubmit);
+  if (btnSubmitAddSublist) btnSubmitAddSublist.addEventListener('click', handleAddSublistSubmit);
 
   // =========================================================================
   // 5. TAAK BEWERKEN / WIJZIGEN MODAL LOGIC

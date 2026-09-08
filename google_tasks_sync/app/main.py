@@ -128,7 +128,15 @@ async def validate_json(payload: Dict[str, Any] = Body(...)):
 async def get_all_tasks():
     try:
         tasks = sync_engine.get_all_tasks()
-        return {"tasks": tasks}
+        categories = sync_engine.get_all_categories()
+        return {"tasks": tasks, "categories": categories}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/categories")
+async def get_categories():
+    try:
+        return {"categories": sync_engine.get_all_categories()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

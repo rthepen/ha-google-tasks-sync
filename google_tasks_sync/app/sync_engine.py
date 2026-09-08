@@ -7,6 +7,24 @@ from typing import Dict, List, Any, Optional
 from threading import Timer
 from google_client import GoogleTasksClient
 
+DEFAULT_CATEGORIES = [
+    "Bouw - Verwarming Kelder",
+    "Bouw - Studio Dave",
+    "Bouw - Studio Rahiena",
+    "Bouw - Eigen Studio",
+    "Bouw - Thuisaccu",
+    "Bouw - Home Assistant",
+    "Bouw Woning",
+    "Gezinshuis",
+    "Wisselend & Gezin",
+    "Gezamenlijk (Samen Besluiten)",
+    "Persoonlijke Zorg",
+    "Techniek & Beheer",
+    "Huishouden & Zorg",
+    "Hobby's & Vrije Tijd",
+    "Algemeen"
+]
+
 class SyncEngine:
     def __init__(self, client: GoogleTasksClient, sync_interval_seconds: int = 900):
         self.client = client
@@ -23,6 +41,13 @@ class SyncEngine:
             self.history_file = os.path.join(os.path.dirname(__file__), "completion_history.json")
         self.completion_history: Dict[str, Any] = {}
         self.load_completion_history()
+
+        # Persistent custom categories store
+        self.categories_file = "/data/custom_categories.json"
+        if not os.path.exists("/data") and not os.path.isdir("/data"):
+            self.categories_file = os.path.join(os.path.dirname(__file__), "custom_categories.json")
+        self.custom_categories: List[str] = []
+        self.load_custom_categories()
 
         self.start_periodic_sync()
 
@@ -72,6 +97,34 @@ class SyncEngine:
                 json.dump({"tasks": self.completion_history}, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Kon completion history niet opslaan: {e}")
+
+    def load_custom_categories(self):
+        """Laadt handmatig toegevoegde categorieën van disk."""
+        try:
+            if os.path.exists(self.categories_file):
+                with open(self.categories_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.custom_categories = data.get("categories", [])
+        except Exception as e:
+            print(f"Kon custom categories niet laden: {e}")
+            self.custom_categories = []
+
+    def save_custom_categories(self):
+        """Slaat handmatig toegevoegde categorieën op disk op."""
+        try:
+            os.makedirs(os.path.dirname(self.categories_file), exist_ok=True)
+            with open(self.categories_file, "w", encoding="utf-8") as f:
+                json.dump({"categories": self.custom_categories}, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Kon custom categories niet opslaan: {e}")
+
+    def get_all_categories(self) -> List[str]:
+        """Geeft alle unieke categorieën terug (standaard + custom)."""
+        cats = set(DEFAULT_CATEGORIES)
+        for c in self.custom_categories:
+            if c:
+                cats.add(c.strip())
+        return sorted(list(cats), key=lambda s: s.lower())
 
     def clean_task_title(self, title: str) -> str:
         """Stript hardcoded volgnummers (zoals '05. ', '01. Bouw - Verwarming - 02. ') uit de taaktitel."""
@@ -1030,18 +1083,23 @@ class SyncEngine:
         return clean_notes
 
     def create_new_sublist(self, name: str, list_title: Optional[str] = None, category: Optional[str] = None, create_folder_task: bool = False, account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Maakt een nieuwe categorie definitie aan als taakeigenschap (zonder thema of nummering)."""
+        """Maakt een nieuwe categorie definitie aan als persistente taakeigenschap (zonder thema of nummering)."""
         import re
         clean_name = name.replace("📂", "").replace("📁", "").strip()
         clean_name = re.sub(r"^\d+[\.\)]\s*", "", clean_name).strip()
         if not clean_name:
             raise ValueError("Categorienaam mag niet leeg zijn")
 
-        self.log(f"Categorie '{clean_name}' geregistreerd", level="success")
+        if clean_name not in self.custom_categories and clean_name not in DEFAULT_CATEGORIES:
+            self.custom_categories.append(clean_name)
+            self.save_custom_categories()
+
+        self.log(f"Categorie '{clean_name}' permanent geregistreerd", level="success")
         return {
             "success": True,
             "sublist_name": clean_name,
             "category_name": clean_name,
+            "categories": self.get_all_categories(),
             "list_title": list_title or "Universeel",
             "folder_task_id": None
         }
