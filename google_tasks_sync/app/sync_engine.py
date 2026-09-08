@@ -8,21 +8,11 @@ from threading import Timer
 from google_client import GoogleTasksClient
 
 DEFAULT_CATEGORIES = [
-    "Bouw - Verwarming Kelder",
-    "Bouw - Studio Dave",
-    "Bouw - Studio Rahiena",
-    "Bouw - Eigen Studio",
-    "Bouw - Thuisaccu",
-    "Bouw - Home Assistant",
-    "Bouw Woning",
+    "Bouw",
+    "Huishouden",
     "Gezinshuis",
-    "Wisselend & Gezin",
-    "Gezamenlijk (Samen Besluiten)",
-    "Persoonlijke Zorg",
-    "Techniek & Beheer",
-    "Huishouden & Zorg",
-    "Hobby's & Vrije Tijd",
-    "Algemeen"
+    "Persoonlijk",
+    "Ongelabeld"
 ]
 
 class SyncEngine:
@@ -966,7 +956,13 @@ class SyncEngine:
         if not base_title:
             raise ValueError("Taaktitel mag niet leeg zijn")
 
-        clean_sub = (sublist_name or "").replace("📂", "").strip()
+        clean_sub = self.clean_category_name(sublist_name)
+        if clean_sub and clean_sub.lower() != "ongelabeld":
+            if hasattr(self, "excluded_categories") and any(x.lower() == clean_sub.lower() for x in self.excluded_categories):
+                self.excluded_categories = [x for x in self.excluded_categories if x.lower() != clean_sub.lower()]
+            if clean_sub not in self.custom_categories:
+                self.custom_categories.append(clean_sub)
+            self.save_custom_categories()
 
         # Deduce or format final notes with sublist tag
         final_notes = (notes or "").strip()
@@ -1264,18 +1260,14 @@ class SyncEngine:
             else:
                 raise ValueError(f"Kon lijst '{list_title}' niet aanmaken")
 
-        clean_sub_name = (sublist_name or "").replace("📂", "").strip()
+        clean_sub_name = self.clean_category_name(sublist_name) or "Ongelabeld"
+        if clean_sub_name.lower() != "ongelabeld":
+            if hasattr(self, "excluded_categories") and any(x.lower() == clean_sub_name.lower() for x in self.excluded_categories):
+                self.excluded_categories = [x for x in self.excluded_categories if x.lower() != clean_sub_name.lower()]
+            if clean_sub_name not in self.custom_categories:
+                self.custom_categories.append(clean_sub_name)
+            self.save_custom_categories()
 
-        # If clean_sub_name is empty, try to deduce from title keywords if in 05. Wisselende Kapiteins
-        if not clean_sub_name and "wisselende kapiteins" in list_title.lower():
-            t_low = title.lower()
-            bouw_kw = ['waterzijde', 'luchtleidingen', 'ha regeling', 'elektra', 'gipsplaten', 'xps', 'laminaat', 'keuken', 'naden', 'rachelwerk', 'luchtkanalen', 'muren', 'voorzetwanden', 'leidingen', 'meterkast', '3d-ontwerp', 'packs', 'omvormer', 'pv-panelen', 'ac/dc', 'mqtt', 'esp ', 'dashboard', 'douche', 'afvoer', 'montageband']
-            if any(k in t_low for k in bouw_kw):
-                clean_sub_name = "Bouw Woning"
-            elif any(k in t_low for k in ['maandrapportage', 'evaluatie', 'triade', 'bereikbaarheid', 'gastheerschap', 'beschikbaarheid']):
-                clean_sub_name = "Gezinshuis"
-            else:
-                clean_sub_name = "Wisselend & Gezin"
 
         # Formatteer notities met sublijst, timing en frequentie tags
         final_notes = self.format_task_notes(notes=notes, sublist=clean_sub_name, timing=timing, frequency=frequency)
@@ -1361,7 +1353,14 @@ class SyncEngine:
         lists_by_title = {l["title"]: l["id"] for l in tasklists}
         lists_by_id = {l["id"]: l["title"] for l in tasklists}
 
-        clean_sub = (sublist_name or "").replace("📂", "").strip()
+        clean_sub = self.clean_category_name(sublist_name)
+        if clean_sub and clean_sub.lower() != "ongelabeld":
+            if hasattr(self, "excluded_categories") and any(x.lower() == clean_sub.lower() for x in self.excluded_categories):
+                self.excluded_categories = [x for x in self.excluded_categories if x.lower() != clean_sub.lower()]
+            if clean_sub not in self.custom_categories:
+                self.custom_categories.append(clean_sub)
+            self.save_custom_categories()
+
         final_notes = self.format_task_notes(notes=notes, sublist=clean_sub if clean_sub else None, timing=timing, frequency=frequency)
 
         dest_list_id = lists_by_title.get(target_list_title) if target_list_title else list_id
@@ -1489,7 +1488,14 @@ class SyncEngine:
                     lists_by_title[target_title] = target_list_id
                     lists_by_id[target_list_id] = target_title
 
-            clean_sub = (target_sub or "").replace("📂", "").strip()
+            clean_sub = self.clean_category_name(target_sub)
+            if clean_sub and clean_sub.lower() != "ongelabeld":
+                if hasattr(self, "excluded_categories") and any(x.lower() == clean_sub.lower() for x in self.excluded_categories):
+                    self.excluded_categories = [x for x in self.excluded_categories if x.lower() != clean_sub.lower()]
+                if clean_sub not in self.custom_categories:
+                    self.custom_categories.append(clean_sub)
+                self.save_custom_categories()
+
             final_notes = self.format_task_notes(notes=t_notes, sublist=clean_sub if clean_sub else None, timing=target_timing, frequency=target_frequency)
 
             # Find matching parent folder in target list if exists

@@ -100,39 +100,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const defaultCategories = [
-    "Bouw - Verwarming Kelder",
-    "Bouw - Studio Dave",
-    "Bouw - Studio Rahiena",
-    "Bouw - Eigen Studio",
-    "Bouw - Thuisaccu",
-    "Bouw - Home Assistant",
-    "Bouw Woning",
+    "Bouw",
+    "Huishouden",
     "Gezinshuis",
-    "Wisselend & Gezin",
-    "Gezamenlijk (Samen Besluiten)",
-    "Persoonlijke Zorg",
-    "Techniek & Beheer",
-    "Huishouden & Zorg",
-    "Hobby's & Vrije Tijd"
+    "Persoonlijk",
+    "Ongelabeld"
   ];
   let activeCategories = new Set(defaultCategories.map(cleanCategoryName));
 
   function buildSublistOptions(selectedSublist) {
     let html = `<option value="">-- Geen / Automatisch Bepalen --</option>`;
     
-    // Vlakke lijst van unieke categorieën
+    // Vlakke lijst van unieke categorieën: uitsluitend actieve categorieën
     const allCats = new Set(activeCategories);
+    allCats.add('Ongelabeld');
 
-    if (typeof managerTasks !== 'undefined' && managerTasks && managerTasks.length) {
-      managerTasks.forEach(t => {
-        const s = extractSublist(t.notes, t.current_list_title, t.title);
-        if (s) allCats.add(cleanCategoryName(s));
-      });
-    }
-    if (selectedSublist) {
+    if (selectedSublist && selectedSublist !== '__new__') {
       allCats.add(cleanCategoryName(selectedSublist));
     }
-    allCats.add('Ongelabeld');
 
     const sortedCats = Array.from(allCats).filter(Boolean).sort(naturalSort);
     const cleanSel = cleanCategoryName(selectedSublist);
@@ -141,6 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const isSel = (s === cleanSel) || (cleanSel && s.toLowerCase() === cleanSel.toLowerCase());
       html += `<option value="${escapeHtml(s)}" ${isSel ? 'selected' : ''}>📂 ${escapeHtml(s)}</option>`;
     });
+
+    html += `<option value="__new__">➕ Nieuwe Categorie Aanmaken...</option>`;
 
     return html;
   }
@@ -237,42 +224,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
-    const tLow = ((taskTitle || '') + ' ' + (notes || '')).toLowerCase();
-    
-    if (listTitle && (listTitle.includes('Twee Kapiteins') || listTitle.includes('Samen Doen'))) {
-      return "Gezamenlijk (Samen Besluiten)";
-    }
-    if (listTitle && listTitle.includes('Roy Persoonlijk')) {
-      if (tLow.includes('brevet') || tLow.includes('zeilboot') || tLow.includes('buitenboordmotor') || tLow.includes('speervissen') || tLow.includes('portugal')) {
-        return "Hobby's & Vrije Tijd";
-      }
-      return "Persoonlijke Zorg";
-    }
-    if (listTitle && listTitle.includes('Karen Persoonlijk')) return "Persoonlijke Zorg";
-    if (listTitle && listTitle.includes('Kapitein Roy')) {
-      if (tLow.includes('gezinshuis') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('evaluatie') || tLow.includes('rapportage')) {
-        return "Gezinshuis";
-      }
-      return "Techniek & Beheer";
-    }
-    if (listTitle && listTitle.includes('Kapitein Karen')) {
-      if (tLow.includes('anticonceptie')) return "Persoonlijke Zorg";
-      if (tLow.includes('kavelweg')) return "Gezinshuis";
-      return "Huishouden & Zorg";
-    }
-    if (listTitle && listTitle.includes('Wisselende Kapiteins')) {
-      if (tLow.includes('verwarming kelder')) return "Bouw - Verwarming Kelder";
-      if (tLow.includes('studio dave')) return "Bouw - Studio Dave";
-      if (tLow.includes('studio rahiena')) return "Bouw - Studio Rahiena";
-      if (tLow.includes('eigen studio')) return "Bouw - Eigen Studio";
-      if (tLow.includes('thuisaccu')) return "Bouw - Thuisaccu";
-      if (tLow.includes('home assistant')) return "Bouw - Home Assistant";
-      const bouwKw = ['waterzijde', 'luchtleidingen', 'ha regeling', 'elektra', 'gipsplaten', 'xps', 'laminaat', 'keuken', 'naden', 'rachelwerk', 'luchtkanalen', 'muren', 'voorzetwanden', 'leidingen', 'meterkast', '3d-ontwerp', 'packs', 'omvormer', 'pv-panelen', 'ac/dc', 'mqtt', 'esp ', 'dashboard'];
-      if (bouwKw.some(k => tLow.includes(k))) return "Bouw Woning";
-      if (tLow.includes('maandrapportage') || tLow.includes('evaluatie') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('gastheerschap') || tLow.includes('beschikbaarheid')) return "Gezinshuis";
-      return "Wisselend & Gezin";
-    }
-    return "Algemeen";
+    // Als er geen categorie-tag in notes staat: taak is Ongelabeld
+    return "Ongelabeld";
   }
 
   function extractCleanTitle(title) {
@@ -319,10 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Update sublist filter options (bevat alle actieve categorieën)
       const allSublists = new Set(activeCategories);
-      managerTasks.forEach(t => {
-        const s = extractSublist(t.notes, t.current_list_title, t.title);
-        if (s) allSublists.add(cleanCategoryName(s));
-      });
       allSublists.add('Ongelabeld');
       
       const prevSub = managerFilterSublist.value;
@@ -778,6 +727,13 @@ document.addEventListener('DOMContentLoaded', () => {
     managerTbody.querySelectorAll('.task-sublist-select').forEach(sel => {
       sel.addEventListener('change', () => {
         const taskId = sel.dataset.id;
+        if (sel.value === '__new__') {
+          const task = managerTasks.find(t => t.id === taskId);
+          const currentSub = task ? extractSublist(task.notes, task.current_list_title, task.title) : '';
+          sel.value = currentSub;
+          openAddSublistModal();
+          return;
+        }
         handleTaskAssignmentChange(taskId);
       });
     });
@@ -863,7 +819,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (data.success) {
         showToast(`✓ ${data.moved_count} taken succesvol verplaatst in Google Tasks! 🎉`);
-        loadManagerTasks();
+        pendingReassignments = {};
+        updatePendingBadge();
+        await loadManagerTasks();
         loadJsonExport();
       } else {
         throw new Error(data.error || 'Fout');
@@ -2053,6 +2011,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`✓ Categorie '${newSubName}' succesvol toegevoegd! 🎉`);
         closeAddSublistModal();
         await loadManagerTasks();
+        populateAddTaskSublists();
         loadJsonExport();
       } else {
         throw new Error(data.detail || data.error || 'Fout bij aanmaken');
@@ -2072,6 +2031,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (addSublistForm) addSublistForm.addEventListener('submit', handleAddSublistSubmit);
   if (btnSubmitAddSublist) btnSubmitAddSublist.addEventListener('click', handleAddSublistSubmit);
+
+  if (addTaskSublist) {
+    addTaskSublist.addEventListener('change', () => {
+      if (addTaskSublist.value === '__new__') {
+        addTaskSublist.value = '';
+        openAddSublistModal();
+      }
+    });
+  }
 
   // =========================================================================
   // 5. TAAK BEWERKEN / WIJZIGEN MODAL LOGIC
@@ -2101,6 +2069,15 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         if (editTaskCustomFrequencyGroup) editTaskCustomFrequencyGroup.style.display = 'none';
         if (editTaskCustomFrequency) editTaskCustomFrequency.value = '';
+      }
+    });
+  }
+
+  if (editTaskSublist) {
+    editTaskSublist.addEventListener('change', () => {
+      if (editTaskSublist.value === '__new__') {
+        editTaskSublist.value = '';
+        openAddSublistModal();
       }
     });
   }
