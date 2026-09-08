@@ -736,8 +736,8 @@ class SyncEngine:
         self.log(f"Taak '{task_id}' succesvol verwijderd uit lijst '{list_id}'", level="success")
         return {"success": True, "task_id": task_id}
 
-    def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Wijzigt titel, notities, deadline of verplaatst een taak naar een andere lijst."""
+    def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, sublist_name: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Wijzigt titel, notities, deadline of verplaatst een taak naar een andere lijst of sublijst."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts geconfigureerd")
@@ -745,10 +745,46 @@ class SyncEngine:
         target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
         tasklists = self.client.list_tasklists(target_account)
         lists_by_title = {l["title"]: l["id"] for l in tasklists}
+        lists_by_id = {l["id"]: l["title"] for l in tasklists}
+
+        final_notes = notes.strip()
+        clean_sub = (sublist_name or "").replace("📂", "").strip()
+        if clean_sub and not clean_sub.lower().startswith("alle"):
+            if re.match(r"^\[.*?\]", final_notes):
+                final_notes = re.sub(r"^\[.*?\]\s*", f"[{clean_sub}] ", final_notes)
+            else:
+                final_notes = f"[{clean_sub}] {final_notes}".strip()
+
+        dest_list_id = lists_by_title.get(target_list_title) if target_list_title else list_id
+        effective_dest_title = target_list_title or lists_by_id.get(dest_list_id, "Huidige Lijst")
+
+        # Find matching parent folder in destination list
+        parent_folder_id = None
+        if dest_list_id and clean_sub:
+            raw_dest = self.client.list_tasks(target_account, dest_list_id)
+            clean_sub_pure = re.sub(r"^\d+\.\s*", "", clean_sub).strip().lower()
+            for dt in raw_dest:
+                if dt.get("deleted"):
+                    continue
+                dt_tit_clean = dt.get("title", "").replace("📂", "").strip().lower()
+                if clean_sub_pure and (clean_sub_pure in dt_tit_clean or dt_tit_clean in clean_sub_pure):
+                    parent_folder_id = dt["id"]
+                    break
+
+        # Adjust title prefix if moving sublist within Wisselende Kapiteins
+        final_title = title.strip()
+        if clean_sub:
+            base_title = re.sub(r"^(\d+\.\s*.*?-\s*)?\d+\.\s*", "", final_title).strip()
+            sub_num_m = re.match(r"^(\d+)\.\s*(?:Bouw\s*-\s*)?(.*)$", clean_sub)
+            if sub_num_m and "wisselende kapiteins" in effective_dest_title.lower():
+                prefix = f"{sub_num_m.group(1)}. {sub_num_m.group(2)} - "
+                final_title = f"{prefix}{base_title}"
+            elif base_title and base_title != final_title:
+                final_title = base_title
 
         body = {
-            "title": title.strip(),
-            "notes": notes.strip(),
+            "title": final_title,
+            "notes": final_notes,
             "status": "needsAction"
         }
         if due:
@@ -756,18 +792,29 @@ class SyncEngine:
         else:
             body["due"] = None
 
-        dest_list_id = lists_by_title.get(target_list_title) if target_list_title else list_id
-        
         if dest_list_id and dest_list_id != list_id:
             # Move to new list
             created = self.client.create_task(target_account, dest_list_id, body)
             if task_id and list_id:
                 self.client.delete_task(target_account, list_id, task_id)
-            self.log(f"Taak '{title}' gewijzigd en verplaatst naar '{target_list_title}'", level="success")
+            if parent_folder_id and created and "id" in created:
+                try:
+                    self.client.move_task(target_account, dest_list_id, created["id"], parent_id=parent_folder_id)
+                except Exception:
+                    pass
+            self.renumber_list_tasks(target_account, list_id, lists_by_id.get(list_id, "Bronlijst"))
+            self.renumber_list_tasks(target_account, dest_list_id, effective_dest_title)
+            self.log(f"Taak '{final_title}' gewijzigd en verplaatst naar '{target_list_title}'", level="success")
             return {"success": True, "task_id": created.get("id") if created else None}
         else:
             updated = self.client.update_task(target_account, list_id, task_id, body)
-            self.log(f"Taak '{title}' succesvol gewijzigd", level="success")
+            if parent_folder_id:
+                try:
+                    self.client.move_task(target_account, list_id, task_id, parent_id=parent_folder_id)
+                except Exception:
+                    pass
+            self.renumber_list_tasks(target_account, list_id, effective_dest_title)
+            self.log(f"Taak '{final_title}' succesvol gewijzigd", level="success")
             return {"success": True, "task_id": task_id}
 
     def renumber_list_tasks(self, account_id: str, list_id: str, list_title: str) -> None:
@@ -823,7 +870,7 @@ class SyncEngine:
             self.log(f"Fout bij hernummeren van '{list_title}': {str(e)}", level="error")
 
     def reassign_tasks_batch(self, moves: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Verplaatst taken naar een andere lijst (doel-lijst), voorkomt duplicaten en maakt nummering sluitend."""
+        """Verplaatst taken naar een andere lijst of sub-lijst, voorkomt duplicaten en maakt nummering sluitend."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts")
@@ -852,12 +899,13 @@ class SyncEngine:
             t_id = m.get("task_id")
             cur_list_id = m.get("current_list_id")
             target_title = m.get("target_list_title")
+            target_sub = m.get("target_sublist")
             t_title = (m.get("title") or "").strip()
             t_notes = m.get("notes", "")
             t_status = m.get("status", "needsAction")
 
             target_list_id = lists_by_title.get(target_title)
-            if not target_list_id:
+            if not target_list_id and target_title:
                 # Maak lijst aan indien niet bestaand
                 new_l = self.client.create_tasklist(target_account, target_title)
                 if new_l:
@@ -865,31 +913,74 @@ class SyncEngine:
                     lists_by_title[target_title] = target_list_id
                     lists_by_id[target_list_id] = target_title
 
+            # Format notes with target_sub if specified
+            final_notes = t_notes.strip()
+            clean_sub = (target_sub or "").replace("📂", "").strip()
+            if clean_sub and not clean_sub.lower().startswith("alle"):
+                if re.match(r"^\[.*?\]", final_notes):
+                    final_notes = re.sub(r"^\[.*?\]\s*", f"[{clean_sub}] ", final_notes)
+                else:
+                    final_notes = f"[{clean_sub}] {final_notes}".strip()
+
+            # Find matching parent folder in target list if exists
+            parent_folder_id = None
+            if target_list_id and clean_sub:
+                raw_dest_tasks = self.client.list_tasks(target_account, target_list_id)
+                clean_sub_pure = re.sub(r"^\d+\.\s*", "", clean_sub).strip().lower()
+                for dt in raw_dest_tasks:
+                    if dt.get("deleted"):
+                        continue
+                    dt_tit_clean = dt.get("title", "").replace("📂", "").strip().lower()
+                    if clean_sub_pure and (clean_sub_pure in dt_tit_clean or dt_tit_clean in clean_sub_pure):
+                        parent_folder_id = dt["id"]
+                        break
+
+            # Handle title prefix if moving sublist within Wisselende Kapiteins or Bouw projects
+            final_title = t_title
+            if clean_sub:
+                base_title = re.sub(r"^(\d+\.\s*.*?-\s*)?\d+\.\s*", "", t_title).strip()
+                sub_num_m = re.match(r"^(\d+)\.\s*(?:Bouw\s*-\s*)?(.*)$", clean_sub)
+                if sub_num_m and target_title and "wisselende kapiteins" in target_title.lower():
+                    prefix = f"{sub_num_m.group(1)}. {sub_num_m.group(2)} - "
+                    final_title = f"{prefix}{base_title}"
+                elif base_title and base_title != t_title:
+                    final_title = base_title
+
             if target_list_id and cur_list_id != target_list_id:
                 affected_lists.add((cur_list_id, lists_by_id.get(cur_list_id, "Bronlijst")))
                 affected_lists.add((target_list_id, target_title))
 
                 existing_in_target = get_existing_in_list(target_list_id)
 
-                if t_title in existing_in_target:
+                if final_title in existing_in_target:
                     # Update bestaande taak in doellijst in plaats van dubbel aanmaken
-                    existing_id = existing_in_target[t_title]
+                    existing_id = existing_in_target[final_title]
                     self.client.update_task(target_account, target_list_id, existing_id, {
-                        "title": t_title,
-                        "notes": t_notes,
+                        "title": final_title,
+                        "notes": final_notes,
                         "status": t_status
                     })
-                    self.log(f"Bestaande taak in '{target_title}' bijgewerkt: '{t_title}'")
+                    if parent_folder_id:
+                        try:
+                            self.client.move_task(target_account, target_list_id, existing_id, parent_id=parent_folder_id)
+                        except Exception:
+                            pass
+                    self.log(f"Bestaande taak in '{target_title}' bijgewerkt: '{final_title}' (sub: {clean_sub or 'onveranderd'})")
                 else:
                     # Maak aan in nieuwe lijst
                     created = self.client.create_task(target_account, target_list_id, {
-                        "title": t_title,
-                        "notes": t_notes,
+                        "title": final_title,
+                        "notes": final_notes,
                         "status": t_status
                     })
                     if created and "id" in created:
-                        existing_in_target[t_title] = created["id"]
-                    self.log(f"Taak '{t_title}' verplaatst naar '{target_title}'")
+                        existing_in_target[final_title] = created["id"]
+                        if parent_folder_id:
+                            try:
+                                self.client.move_task(target_account, target_list_id, created["id"], parent_id=parent_folder_id)
+                            except Exception:
+                                pass
+                    self.log(f"Taak '{final_title}' verplaatst naar '{target_title}' (sub: {clean_sub or 'onveranderd'})")
 
                 # Verwijder uit oude lijst
                 if t_id and cur_list_id:
@@ -898,12 +989,29 @@ class SyncEngine:
                 success_count += 1
                 time.sleep(0.04)
 
+            elif target_list_id and cur_list_id == target_list_id and clean_sub:
+                # Taak blijft in dezelfde lijst maar wisselt van sublijst
+                affected_lists.add((cur_list_id, target_title))
+                self.client.update_task(target_account, cur_list_id, t_id, {
+                    "title": final_title,
+                    "notes": final_notes,
+                    "status": t_status
+                })
+                if parent_folder_id:
+                    try:
+                        self.client.move_task(target_account, cur_list_id, t_id, parent_id=parent_folder_id)
+                    except Exception:
+                        pass
+                self.log(f"Taak '{final_title}' gewijzigd naar sub-lijst '{clean_sub}' in '{target_title}'")
+                success_count += 1
+                time.sleep(0.04)
+
         # Automatic Renumbering of all affected lists
         for l_id, l_title in affected_lists:
             if l_id:
                 self.renumber_list_tasks(target_account, l_id, l_title)
 
-        self.log(f"Batch herindeling voltooid: {success_count} taken verplaatst en nummering gecorrigeerd.", level="success")
+        self.log(f"Batch herindeling voltooid: {success_count} taken verplaatst/gewijzigd en nummering gecorrigeerd.", level="success")
         return {"success": True, "moved_count": success_count}
 
     def apply_captain_division(self, roy_tasks: List[Dict[str, Any]], karen_tasks: List[Dict[str, Any]], account_id: Optional[str] = None) -> Dict[str, Any]:

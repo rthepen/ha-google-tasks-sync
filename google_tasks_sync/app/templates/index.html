@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Google Tasks JSON & Kapitein Verdeler | Home Assistant</title>
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.11">
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.26">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -119,13 +119,14 @@
           <table class="manager-table">
             <thead>
               <tr>
-                <th style="width: 45%;">Taak & Omschrijving</th>
-                <th style="width: 25%;">Huidige Lijst</th>
-                <th style="width: 30%;">Verschuif naar Lijst:</th>
+                <th style="width: 35%;">Taak & Omschrijving</th>
+                <th style="width: 25%;">Huidige Hoofd- & Sub-lijst</th>
+                <th style="width: 20%;">Verschuif Hoofdlijst:</th>
+                <th style="width: 20%;">Verschuif Sub-lijst:</th>
               </tr>
             </thead>
             <tbody id="manager-tasks-tbody">
-              <tr><td colspan="3" class="loading-cell">Taken laden...</td></tr>
+              <tr><td colspan="4" class="loading-cell">Taken laden...</td></tr>
             </tbody>
           </table>
         </div>
@@ -496,10 +497,19 @@
 
             <div class="form-group">
               <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
-                Deadline / Einddatum:
+                Sub-lijst (Thema / Ruimte):
               </label>
-              <input type="date" id="edit-task-due" class="search-input" style="width:100%; font-size:13px; padding:7px 12px; color-scheme:dark;">
+              <select id="edit-task-sublist" class="filter-select" style="width:100%; padding:8px 10px; font-size:13px;">
+                <!-- Dynamisch gevuld -->
+              </select>
             </div>
+          </div>
+
+          <div class="form-group">
+            <label style="font-size:12.5px; font-weight:600; margin-bottom:4px; display:block; color:var(--text-main);">
+              Deadline / Einddatum:
+            </label>
+            <input type="date" id="edit-task-due" class="search-input" style="width:100%; font-size:13px; padding:7px 12px; color-scheme:dark;">
           </div>
 
           <div class="form-group">
@@ -611,7 +621,7 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.25">
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.25"></script>
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.26">
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.26"></script>
 </body>
 </html>

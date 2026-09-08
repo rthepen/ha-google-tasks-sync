@@ -410,7 +410,8 @@ html, body {
   font-size: 12.5px;
 }
 
-.task-list-select {
+.task-list-select,
+.task-sublist-select {
   width: 100%;
   background: #161b22;
   border: 1px solid var(--border-color);
@@ -418,14 +419,26 @@ html, body {
   padding: 5px 8px;
   border-radius: 4px;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 12px;
   cursor: pointer;
+  text-overflow: ellipsis;
 }
 
-.task-list-select.changed {
-  border-color: #2ea043;
-  color: #3fb950;
-  background: #0d1e13;
+.task-sublist-select {
+  color: #c9d1d9;
+}
+
+.task-list-select:focus,
+.task-sublist-select:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+
+.task-list-select.changed,
+.task-sublist-select.changed {
+  border-color: #2ea043 !important;
+  color: #3fb950 !important;
+  background: #0d1e13 !important;
 }
 
 /* ================================================= */

@@ -168,6 +168,7 @@ class UpdateTaskPayload(BaseModel):
     notes: Optional[str] = ""
     due: Optional[str] = None
     target_list_title: Optional[str] = None
+    sublist_name: Optional[str] = None
 
 @app.post("/api/tasks/update")
 async def update_task(payload: UpdateTaskPayload):
@@ -178,7 +179,8 @@ async def update_task(payload: UpdateTaskPayload):
             title=payload.title,
             notes=payload.notes or "",
             due=payload.due,
-            target_list_title=payload.target_list_title
+            target_list_title=payload.target_list_title,
+            sublist_name=payload.sublist_name
         )
         return res
     except Exception as e:

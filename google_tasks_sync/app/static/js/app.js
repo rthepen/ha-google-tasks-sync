@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function loadManagerTasks() {
-    managerTbody.innerHTML = '<tr><td colspan="3" class="loading-cell">Taken ophalen uit alle Google Tasks lijsten...</td></tr>';
+    managerTbody.innerHTML = '<tr><td colspan="4" class="loading-cell">Taken ophalen uit alle Google Tasks lijsten...</td></tr>';
     pendingReassignments = {};
     updatePendingBadge();
     loadInboxTasks();
@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderManagerTable();
     } catch (e) {
-      managerTbody.innerHTML = `<tr><td colspan="3" class="status-msg error">Fout: ${e.message}</td></tr>`;
+      managerTbody.innerHTML = `<tr><td colspan="4" class="status-msg error">Fout: ${e.message}</td></tr>`;
     }
   }
 
@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (filtered.length === 0) {
-      managerTbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:var(--text-muted);">Geen taken gevonden met dit filter.</td></tr>';
+      managerTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Geen taken gevonden met dit filter.</td></tr>';
       return;
     }
 
@@ -273,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const count = grouped[subName].length;
       html += `
         <tr class="sublist-header-row">
-          <td colspan="3">
+          <td colspan="4">
             <div class="sublist-header-badge">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
               <strong>Sub-lijst: ${subName}</strong>
@@ -284,19 +284,27 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       grouped[subName].forEach(t => {
-        const isChanged = !!pendingReassignments[t.id];
-        const selectedTarget = isChanged ? pendingReassignments[t.id].target_list_title : t.current_list_title;
+        const currentSub = extractSublist(t.notes, t.current_list_title, t.title);
+        const reassignInfo = pendingReassignments[t.id];
+        const isModified = !!reassignInfo;
+        const selectedTargetList = isModified ? reassignInfo.target_list_title : t.current_list_title;
+        const selectedTargetSub = isModified ? reassignInfo.target_sublist : currentSub;
 
-        const optionsHtml = availableLists.map(l => 
-          `<option value="${l}" ${l === selectedTarget ? 'selected' : ''}>${l}</option>`
+        const isListChanged = isModified && (reassignInfo.target_list_title !== t.current_list_title);
+        const isSubChanged = isModified && (reassignInfo.target_sublist !== currentSub);
+
+        const listOptionsHtml = availableLists.map(l => 
+          `<option value="${l}" ${l === selectedTargetList ? 'selected' : ''}>${l}</option>`
         ).join('');
+
+        const sublistOptionsHtml = buildSublistOptions(selectedTargetSub, selectedTargetList);
 
         // Clean display notes
         const cleanNotes = (t.notes || '').replace(/^\[(.*?)\]\s*/, '');
         const dueDateFormatted = t.due ? new Date(t.due).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
 
         html += `
-          <tr class="${isChanged ? 'modified' : ''}" data-id="${t.id}">
+          <tr class="${isModified ? 'modified' : ''}" data-id="${t.id}">
             <td style="padding-left:24px;">
               <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
                 <div>
@@ -322,11 +330,19 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
             </td>
             <td>
-              <span class="tag" style="font-size:11px;">${t.current_list_title}</span>
+              <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+                <span class="tag" style="font-size:11px; white-space:nowrap;">${t.current_list_title}</span>
+                <span class="tag" style="font-size:11px; background:rgba(31,111,235,0.15); color:#58a6ff; border:1px solid rgba(56,139,253,0.35); white-space:nowrap;" title="Huidige Sub-lijst">📂 ${currentSub}</span>
+              </div>
             </td>
             <td>
-              <select class="task-list-select ${isChanged ? 'changed' : ''}" data-id="${t.id}">
-                ${optionsHtml}
+              <select class="task-list-select ${isListChanged ? 'changed' : ''}" data-id="${t.id}" title="Selecteer een nieuwe hoofdlijst">
+                ${listOptionsHtml}
+              </select>
+            </td>
+            <td>
+              <select class="task-sublist-select ${isSubChanged ? 'changed' : ''}" data-id="${t.id}" title="Selecteer een nieuwe sub-lijst">
+                ${sublistOptionsHtml}
               </select>
             </td>
           </tr>
@@ -374,31 +390,66 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Attach change handlers
+    // Central assignment change handler for both list and sublist dropdowns
+    function handleTaskAssignmentChange(taskId) {
+      const task = managerTasks.find(t => t.id === taskId);
+      if (!task) return;
+      const row = managerTbody.querySelector(`tr[data-id="${taskId}"]`);
+      if (!row) return;
+
+      const listSel = row.querySelector('.task-list-select');
+      const subSel = row.querySelector('.task-sublist-select');
+      if (!listSel || !subSel) return;
+
+      const targetList = listSel.value;
+      const targetSub = subSel.value;
+      const currentSub = extractSublist(task.notes, task.current_list_title, task.title);
+
+      const listDiffers = (targetList !== task.current_list_title);
+      const subDiffers = (targetSub !== '' && targetSub !== currentSub);
+
+      if (listDiffers || subDiffers) {
+        pendingReassignments[taskId] = {
+          task_id: task.id,
+          current_list_id: task.current_list_id,
+          current_list_title: task.current_list_title,
+          target_list_title: targetList,
+          target_sublist: targetSub || currentSub,
+          title: task.title,
+          notes: task.notes,
+          status: task.status
+        };
+        listSel.classList.toggle('changed', listDiffers);
+        subSel.classList.toggle('changed', subDiffers);
+        row.classList.add('modified');
+      } else {
+        delete pendingReassignments[taskId];
+        listSel.classList.remove('changed');
+        subSel.classList.remove('changed');
+        row.classList.remove('modified');
+      }
+      updatePendingBadge();
+    }
+
+    // Attach list change handlers
     managerTbody.querySelectorAll('.task-list-select').forEach(sel => {
       sel.addEventListener('change', () => {
         const taskId = sel.dataset.id;
-        const targetList = sel.value;
-        const task = managerTasks.find(t => t.id === taskId);
-        if (!task) return;
-
-        if (targetList !== task.current_list_title) {
-          pendingReassignments[taskId] = {
-            task_id: task.id,
-            current_list_id: task.current_list_id,
-            target_list_title: targetList,
-            title: task.title,
-            notes: task.notes,
-            status: task.status
-          };
-          sel.classList.add('changed');
-          sel.closest('tr').classList.add('modified');
-        } else {
-          delete pendingReassignments[taskId];
-          sel.classList.remove('changed');
-          sel.closest('tr').classList.remove('modified');
+        const row = sel.closest('tr');
+        const subSel = row.querySelector('.task-sublist-select');
+        if (subSel) {
+          const currentSubVal = subSel.value;
+          subSel.innerHTML = buildSublistOptions(currentSubVal, sel.value);
         }
-        updatePendingBadge();
+        handleTaskAssignmentChange(taskId);
+      });
+    });
+
+    // Attach sublist change handlers
+    managerTbody.querySelectorAll('.task-sublist-select').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const taskId = sel.dataset.id;
+        handleTaskAssignmentChange(taskId);
       });
     });
   }
@@ -1477,6 +1528,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const editTaskListId = document.getElementById('edit-task-list-id');
   const editTaskTitle = document.getElementById('edit-task-title');
   const editTaskList = document.getElementById('edit-task-list');
+  const editTaskSublist = document.getElementById('edit-task-sublist');
   const editTaskDue = document.getElementById('edit-task-due');
   const editTaskNotes = document.getElementById('edit-task-notes');
 
@@ -1487,6 +1539,12 @@ document.addEventListener('DOMContentLoaded', () => {
     editTaskTitle.value = task.title;
     editTaskList.value = task.current_list_title;
     editTaskNotes.value = task.notes || '';
+
+    const currentSub = extractSublist(task.notes, task.current_list_title, task.title);
+    if (editTaskSublist) {
+      editTaskSublist.innerHTML = buildSublistOptions(currentSub, task.current_list_title);
+      editTaskSublist.value = currentSub;
+    }
     
     // Parse date if present: 2026-08-16T00:00:00.000Z -> 2026-08-16
     if (task.due) {
@@ -1497,6 +1555,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     editTaskModal.style.display = 'flex';
     editTaskTitle.focus();
+  }
+
+  if (editTaskList && editTaskSublist) {
+    editTaskList.addEventListener('change', () => {
+      editTaskSublist.innerHTML = buildSublistOptions(editTaskSublist.value, editTaskList.value);
+    });
   }
 
   function closeEditTaskModal() {
@@ -1519,6 +1583,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const targetList = editTaskList.value;
+      const targetSublist = editTaskSublist ? editTaskSublist.value : null;
       const notes = (editTaskNotes.value || '').trim();
       const due = editTaskDue.value ? editTaskDue.value : null;
 
@@ -1536,7 +1601,8 @@ document.addEventListener('DOMContentLoaded', () => {
             title: title,
             notes: notes,
             due: due,
-            target_list_title: targetList
+            target_list_title: targetList,
+            sublist_name: targetSublist
           })
         });
 
