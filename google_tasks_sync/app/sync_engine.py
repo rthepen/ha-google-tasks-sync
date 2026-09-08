@@ -1030,43 +1030,19 @@ class SyncEngine:
         return clean_notes
 
     def create_new_sublist(self, name: str, list_title: Optional[str] = None, category: Optional[str] = None, create_folder_task: bool = False, account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Maakt een nieuwe sublijst definitie aan en optioneel een '📂 [Naam]' header taak in Google Tasks indien een lijst is meegegeven."""
+        """Maakt een nieuwe categorie definitie aan als taakeigenschap (zonder thema of nummering)."""
         import re
-        clean_name = name.replace("📂", "").strip()
+        clean_name = name.replace("📂", "").replace("📁", "").strip()
+        clean_name = re.sub(r"^\d+[\.\)]\s*", "", clean_name).strip()
         if not clean_name:
-            raise ValueError("Sub-lijst naam mag niet leeg zijn")
+            raise ValueError("Categorienaam mag niet leeg zijn")
 
-        accounts = self.client.get_accounts()
-        target_account = account_id if account_id and accounts and account_id in accounts else (list(accounts.keys())[0] if accounts else None)
-
-        folder_task_id = None
-        # Bepaal volgnummer indien niet ingevoerd (bijv. 10. Bouw - Tuin)
-        if not re.match(r"^\d+\.", clean_name) and target_account and list_title:
-            try:
-                tasklists = self.client.list_tasklists(target_account)
-                lists_by_title = {l["title"]: l["id"] for l in tasklists}
-                list_id = lists_by_title.get(list_title)
-                if list_id:
-                    raw_tasks = self.client.list_tasks(target_account, list_id)
-                    max_num = 0
-                    for t in raw_tasks:
-                        tit = t.get("title", "").strip()
-                        if tit.startswith("📂 "):
-                            m = re.match(r"^📂\s*(\d+)\.", tit)
-                            if m and int(m.group(1)) > max_num:
-                                max_num = int(m.group(1))
-                    next_num = max_num + 1 if max_num > 0 else 1
-                    clean_name = f"{next_num:02d}. {clean_name}"
-            except Exception:
-                pass
-
-        # Mapkop taken worden niet langer aangemaakt in Google Tasks omdat Categorie nu een taakeigenschap is
-        self.log(f"Categorie/Sub-lijst '{clean_name}' geregistreerd onder groep '{category or 'Bouw Projecten'}'", level="success")
+        self.log(f"Categorie '{clean_name}' geregistreerd", level="success")
         return {
             "success": True,
             "sublist_name": clean_name,
+            "category_name": clean_name,
             "list_title": list_title or "Universeel",
-            "category": category or "Bouw Projecten",
             "folder_task_id": None
         }
 

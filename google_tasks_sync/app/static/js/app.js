@@ -82,69 +82,56 @@ document.addEventListener('DOMContentLoaded', () => {
     '06. Twee Kapiteins (Samen Doen)'
   ];
 
-  const sublistsByList = {
-    '01. Roy Persoonlijk': ["01. Hobby's & Vrije Tijd", "02. Persoonlijke Zorg"],
-    '02. Karen Persoonlijk': ["01. Persoonlijke Zorg"],
-    '03. Kapitein Roy': ["01. Gezinshuis", "02. Techniek & Beheer"],
-    '04. Kapitein Karen': ["01. Persoonlijke Zorg", "02. Gezinshuis", "03. Huishouden & Zorg"],
-    '05. Wisselende Kapiteins': [
-      "01. Bouw - Verwarming Kelder",
-      "02. Bouw - Studio Dave",
-      "03. Bouw - Studio Rahiena",
-      "04. Bouw - Eigen Studio",
-      "05. Bouw - Thuisaccu",
-      "06. Bouw - Home Assistant",
-      "07. Bouw Woning",
-      "08. Gezinshuis",
-      "09. Wisselend & Gezin"
-    ],
-    '06. Twee Kapiteins (Samen Doen)': ["01. Gezamenlijk (Samen Besluiten)"]
-  };
+  const defaultCategories = [
+    "Bouw - Verwarming Kelder",
+    "Bouw - Studio Dave",
+    "Bouw - Studio Rahiena",
+    "Bouw - Eigen Studio",
+    "Bouw - Thuisaccu",
+    "Bouw - Home Assistant",
+    "Bouw Woning",
+    "Gezinshuis",
+    "Wisselend & Gezin",
+    "Gezamenlijk (Samen Besluiten)",
+    "Persoonlijke Zorg",
+    "Techniek & Beheer",
+    "Huishouden & Zorg",
+    "Hobby's & Vrije Tijd"
+  ];
+  const customCategories = new Set();
 
-  const allSublistCategories = {
-    "Bouw Projecten": [
-      "01. Bouw - Verwarming Kelder",
-      "02. Bouw - Studio Dave",
-      "03. Bouw - Studio Rahiena",
-      "04. Bouw - Eigen Studio",
-      "05. Bouw - Thuisaccu",
-      "06. Bouw - Home Assistant",
-      "07. Bouw Woning"
-    ],
-    "Gezin & Wisselend": [
-      "08. Gezinshuis",
-      "09. Wisselend & Gezin",
-      "01. Gezamenlijk (Samen Besluiten)"
-    ],
-    "Zorg, Beheer & Vrije Tijd": [
-      "01. Persoonlijke Zorg",
-      "02. Techniek & Beheer",
-      "03. Huishouden & Zorg",
-      "01. Hobby's & Vrije Tijd"
-    ]
-  };
+  function cleanCategoryName(name) {
+    if (!name) return '';
+    let c = name.replace(/^[📁📂]\s*/, '').trim();
+    c = c.replace(/^\d+[\.\)]\s*/, '').trim();
+    return c;
+  }
 
   function buildSublistOptions(selectedSublist) {
     let html = `<option value="">-- Geen / Automatisch Bepalen --</option>`;
     
-    // Universele themacategorieën (sublijsten zijn niet gebonden aan een hoofdlijst)
-    Object.keys(allSublistCategories).forEach(cat => {
-      html += `<optgroup label="📁 ${cat}">`;
-      allSublistCategories[cat].forEach(s => {
-        const isSel = (s === selectedSublist) || (selectedSublist && (s.toLowerCase() === selectedSublist.toLowerCase() || s.toLowerCase().includes(selectedSublist.toLowerCase())));
-        html += `<option value="${s}" ${isSel ? 'selected' : ''}>${s}</option>`;
-      });
-      html += `</optgroup>`;
-    });
+    // Vlakke lijst van unieke categorieën (geen themagroepen meer)
+    const allCats = new Set();
+    defaultCategories.forEach(c => allCats.add(cleanCategoryName(c)));
+    customCategories.forEach(c => allCats.add(cleanCategoryName(c)));
 
-    // Eventuele aangepaste/dynamische sublijsten toevoegen indien niet in standaard lijst
-    let allKnown = [];
-    Object.values(allSublistCategories).forEach(arr => allKnown.push(...arr));
-    if (selectedSublist && !allKnown.some(s => s.toLowerCase() === selectedSublist.toLowerCase() || s.toLowerCase().includes(selectedSublist.toLowerCase()))) {
-      html += `<optgroup label="✨ Aangepaste Categorie">`;
-      html += `<option value="${selectedSublist}" selected>${selectedSublist}</option>`;
-      html += `</optgroup>`;
+    if (typeof managerTasks !== 'undefined' && managerTasks && managerTasks.length) {
+      managerTasks.forEach(t => {
+        const s = extractSublist(t.notes, t.current_list_title, t.title);
+        if (s) allCats.add(cleanCategoryName(s));
+      });
     }
+    if (selectedSublist) {
+      allCats.add(cleanCategoryName(selectedSublist));
+    }
+
+    const sortedCats = Array.from(allCats).filter(Boolean).sort(naturalSort);
+    const cleanSel = cleanCategoryName(selectedSublist);
+
+    sortedCats.forEach(s => {
+      const isSel = (s === cleanSel) || (cleanSel && s.toLowerCase() === cleanSel.toLowerCase());
+      html += `<option value="${s}" ${isSel ? 'selected' : ''}>📂 ${s}</option>`;
+    });
 
     return html;
   }
@@ -237,53 +224,46 @@ document.addEventListener('DOMContentLoaded', () => {
               low.startsWith('om de ') || low.startsWith('elke ')) {
             continue; // Sla frequentie tag over
           }
-          // Standardize naming if unnumbered
-          if (clean === 'Bouw - Verwarming Kelder' || clean === 'Verwarming Kelder') return "01. Bouw - Verwarming Kelder";
-          if (clean === 'Bouw - Studio Dave' || clean === 'Studio Dave') return "02. Bouw - Studio Dave";
-          if (clean === 'Bouw - Studio Rahiena' || clean === 'Studio Rahiena') return "03. Bouw - Studio Rahiena";
-          if (clean === 'Bouw - Eigen Studio' || clean === 'Eigen Studio') return "04. Bouw - Eigen Studio";
-          if (clean === 'Bouw - Thuisaccu' || clean === 'Thuisaccu') return "05. Bouw - Thuisaccu";
-          if (clean === 'Bouw - Home Assistant' || clean === 'Home Assistant') return "06. Bouw - Home Assistant";
-          return clean;
+          return cleanCategoryName(clean);
         }
       }
     }
     const tLow = ((taskTitle || '') + ' ' + (notes || '')).toLowerCase();
     
     if (listTitle && (listTitle.includes('Twee Kapiteins') || listTitle.includes('Samen Doen'))) {
-      return "01. Gezamenlijk (Samen Besluiten)";
+      return "Gezamenlijk (Samen Besluiten)";
     }
     if (listTitle && listTitle.includes('Roy Persoonlijk')) {
       if (tLow.includes('brevet') || tLow.includes('zeilboot') || tLow.includes('buitenboordmotor') || tLow.includes('speervissen') || tLow.includes('portugal')) {
-        return "01. Hobby's & Vrije Tijd";
+        return "Hobby's & Vrije Tijd";
       }
-      return "02. Persoonlijke Zorg";
+      return "Persoonlijke Zorg";
     }
-    if (listTitle && listTitle.includes('Karen Persoonlijk')) return "01. Persoonlijke Zorg";
+    if (listTitle && listTitle.includes('Karen Persoonlijk')) return "Persoonlijke Zorg";
     if (listTitle && listTitle.includes('Kapitein Roy')) {
       if (tLow.includes('gezinshuis') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('evaluatie') || tLow.includes('rapportage')) {
-        return "01. Gezinshuis";
+        return "Gezinshuis";
       }
-      return "02. Techniek & Beheer";
+      return "Techniek & Beheer";
     }
     if (listTitle && listTitle.includes('Kapitein Karen')) {
-      if (tLow.includes('anticonceptie')) return "01. Persoonlijke Zorg";
-      if (tLow.includes('kavelweg')) return "02. Gezinshuis";
-      return "03. Huishouden & Zorg";
+      if (tLow.includes('anticonceptie')) return "Persoonlijke Zorg";
+      if (tLow.includes('kavelweg')) return "Gezinshuis";
+      return "Huishouden & Zorg";
     }
     if (listTitle && listTitle.includes('Wisselende Kapiteins')) {
-      if (tLow.includes('verwarming kelder') || tLow.includes('01. verwarming kelder')) return "01. Bouw - Verwarming Kelder";
-      if (tLow.includes('studio dave') || tLow.includes('02. studio dave')) return "02. Bouw - Studio Dave";
-      if (tLow.includes('studio rahiena') || tLow.includes('03. studio rahiena')) return "03. Bouw - Studio Rahiena";
-      if (tLow.includes('eigen studio') || tLow.includes('04. eigen studio')) return "04. Bouw - Eigen Studio";
-      if (tLow.includes('thuisaccu') || tLow.includes('05. thuisaccu')) return "05. Bouw - Thuisaccu";
-      if (tLow.includes('home assistant') || tLow.includes('06. home assistant')) return "06. Bouw - Home Assistant";
+      if (tLow.includes('verwarming kelder')) return "Bouw - Verwarming Kelder";
+      if (tLow.includes('studio dave')) return "Bouw - Studio Dave";
+      if (tLow.includes('studio rahiena')) return "Bouw - Studio Rahiena";
+      if (tLow.includes('eigen studio')) return "Bouw - Eigen Studio";
+      if (tLow.includes('thuisaccu')) return "Bouw - Thuisaccu";
+      if (tLow.includes('home assistant')) return "Bouw - Home Assistant";
       const bouwKw = ['waterzijde', 'luchtleidingen', 'ha regeling', 'elektra', 'gipsplaten', 'xps', 'laminaat', 'keuken', 'naden', 'rachelwerk', 'luchtkanalen', 'muren', 'voorzetwanden', 'leidingen', 'meterkast', '3d-ontwerp', 'packs', 'omvormer', 'pv-panelen', 'ac/dc', 'mqtt', 'esp ', 'dashboard'];
-      if (bouwKw.some(k => tLow.includes(k))) return "07. Bouw Woning";
-      if (tLow.includes('maandrapportage') || tLow.includes('evaluatie') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('gastheerschap') || tLow.includes('beschikbaarheid')) return "08. Gezinshuis";
-      return "09. Wisselend & Gezin";
+      if (bouwKw.some(k => tLow.includes(k))) return "Bouw Woning";
+      if (tLow.includes('maandrapportage') || tLow.includes('evaluatie') || tLow.includes('triade') || tLow.includes('bereikbaarheid') || tLow.includes('gastheerschap') || tLow.includes('beschikbaarheid')) return "Gezinshuis";
+      return "Wisselend & Gezin";
     }
-    return "10. Algemeen";
+    return "Algemeen";
   }
 
   function extractCleanTitle(title) {
@@ -1912,12 +1892,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSubmitAddSublist = document.getElementById('btn-submit-add-sublist');
 
   const addSublistName = document.getElementById('add-sublist-name');
-  const addSublistCategory = document.getElementById('add-sublist-category');
 
   function openAddSublistModal() {
     if (!addSublistModal) return;
     if (addSublistName) addSublistName.value = '';
-    if (addSublistCategory) addSublistCategory.value = 'Bouw Projecten';
     addSublistModal.style.display = 'flex';
     if (addSublistName) addSublistName.focus();
   }
@@ -1933,14 +1911,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnSubmitAddSublist) {
     btnSubmitAddSublist.addEventListener('click', async (e) => {
       e.preventDefault();
-      const rawName = (addSublistName.value || '').trim();
+      const rawName = cleanCategoryName((addSublistName.value || '').trim());
       if (!rawName) {
         showToast('Vul een categorie naam in!', true);
         if (addSublistName) addSublistName.focus();
         return;
       }
-
-      const category = addSublistCategory ? addSublistCategory.value : 'Bouw Projecten';
 
       btnSubmitAddSublist.disabled = true;
       btnSubmitAddSublist.textContent = 'Bezig met aanmaken...';
@@ -1952,22 +1928,16 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: rawName,
-            category: category,
             create_folder_task: false
           })
         });
 
         const data = await res.json();
         if (data.success) {
-          const newSubName = data.sublist_name;
+          const newSubName = data.sublist_name || rawName;
+          customCategories.add(cleanCategoryName(newSubName));
 
-          const catKey = category || 'Bouw Projecten';
-          if (!allSublistCategories[catKey]) allSublistCategories[catKey] = [];
-          if (!allSublistCategories[catKey].includes(newSubName)) {
-            allSublistCategories[catKey].push(newSubName);
-          }
-
-          showToast(`✓ Universele Categorie '${newSubName}' succesvol geregistreerd! 🎉`);
+          showToast(`✓ Categorie '${newSubName}' succesvol toegevoegd! 🎉`);
           closeAddSublistModal();
           await loadManagerTasks();
           loadJsonExport();
