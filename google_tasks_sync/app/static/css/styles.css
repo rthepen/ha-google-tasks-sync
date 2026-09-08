@@ -300,29 +300,101 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 14px;
+  padding: 10px 16px;
   background: #161b22;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.manager-filters {
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.manager-filter-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #0d1117;
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.filter-group-search {
   flex: 1;
-  min-width: 320px;
+  min-width: 180px;
+}
+
+.filter-group-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.timing-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.timing-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 16px;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.timing-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.timing-pill.active {
+  background: rgba(56, 139, 253, 0.2);
+  color: #58a6ff;
+  border-color: #388bfd;
+  box-shadow: 0 0 0 1px #388bfd;
+}
+
+.timing-pill-vast.active {
+  background: rgba(248, 81, 73, 0.2) !important;
+  color: #ff7b72 !important;
+  border-color: #f85149 !important;
+  box-shadow: 0 0 0 1px #f85149 !important;
+}
+
+.timing-pill-los.active {
+  background: rgba(88, 166, 255, 0.2) !important;
+  color: #79c0ff !important;
+  border-color: #58a6ff !important;
+  box-shadow: 0 0 0 1px #58a6ff !important;
 }
 
 .search-input {
-  flex: 1;
-  min-width: 130px;
+  width: 100%;
   background: #090d13;
   border: 1px solid var(--border-color);
   color: #fff;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 4px;
   font-size: 12.5px;
   outline: none;
@@ -346,14 +418,6 @@ html, body {
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 14px;
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  flex-shrink: 0;
 }
 
 .manager-table-container {
@@ -734,10 +798,25 @@ html, body {
     padding: 10px 12px;
   }
 
-  .manager-filters {
-    min-width: 100%;
+  .manager-filter-bar {
     flex-direction: column;
+    align-items: stretch;
     gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .filter-group-dropdowns {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .filter-group-dropdowns .filter-select {
+    width: 100%;
+  }
+
+  .timing-filter-pills {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .search-input,

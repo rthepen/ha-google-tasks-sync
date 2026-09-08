@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Google Tasks JSON & Kapitein Verdeler | Home Assistant</title>
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.28">
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.29">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -57,35 +57,12 @@
             <span class="tag" id="manager-stats-tag">Laden...</span>
           </div>
 
-          <div class="manager-filters">
-            <input type="text" id="manager-search" placeholder="🔍 Zoek taak..." class="search-input">
-            <select id="manager-filter-list" class="filter-select">
-              <option value="all">Alle 6 Hoofdlijsten</option>
-              <option value="incomplete" style="color:#d29922; font-weight:bold;">⚠️ Onvolledige Taken (Inbox)</option>
-              <option value="01. Roy Persoonlijk">01. Roy Persoonlijk</option>
-              <option value="02. Karen Persoonlijk">02. Karen Persoonlijk</option>
-              <option value="03. Kapitein Roy">03. Kapitein Roy</option>
-              <option value="04. Kapitein Karen">04. Kapitein Karen</option>
-              <option value="05. Wisselende Kapiteins">05. Wisselende Kapiteins</option>
-              <option value="06. Twee Kapiteins (Samen Doen)">06. Twee Kapiteins (Samen Doen)</option>
-            </select>
-            <select id="manager-filter-sublist" class="filter-select">
-              <option value="all">Alle Sub-lijsten</option>
-              <!-- Dynamisch gevuld -->
-            </select>
-            <select id="manager-filter-timing" class="filter-select">
-              <option value="all">Alle Timings (Vast & Los)</option>
-              <option value="vast">⏰ Vast in tijd (Extern bepaald)</option>
-              <option value="los">⏳ Los in tijd (Zelf kiezen)</option>
-            </select>
-          </div>
-
           <div class="toolbar-actions">
             <button class="btn btn-primary" id="btn-open-add-task-modal" title="Nieuwe taak toevoegen">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              Nieuwe Taak
+              + Nieuwe Taak
             </button>
-            <button class="btn btn-primary" id="btn-open-add-sublist-modal" title="Nieuwe sub-lijst toevoegen" style="background:#1f6feb; border-color:#388bfd;">
+            <button class="btn btn-primary" id="btn-open-add-sublist-modal" title="Nieuwe universele sub-lijst toevoegen" style="background:#1f6feb; border-color:#388bfd;">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
               + Nieuwe Sub-lijst
             </button>
@@ -100,6 +77,45 @@
             <button class="btn btn-success" id="btn-save-reassignments">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
               Wijzigingen Syncen naar Google Tasks! (<span id="reassign-pending-count">0</span>)
+            </button>
+          </div>
+        </div>
+
+        <!-- Aparte dedicated Filterbalk (voorkomt overlap met knoppen) -->
+        <div class="manager-filter-bar">
+          <div class="filter-group-search">
+            <input type="text" id="manager-search" placeholder="🔍 Zoek taak op titel of trefwoord..." class="search-input">
+          </div>
+          <div class="filter-group-dropdowns">
+            <select id="manager-filter-list" class="filter-select" title="Filter op hoofdlijst">
+              <option value="all">📁 Alle 6 Hoofdlijsten</option>
+              <option value="incomplete" style="color:#d29922; font-weight:bold;">⚠️ Onvolledige Taken (Inbox)</option>
+              <option value="01. Roy Persoonlijk">01. Roy Persoonlijk</option>
+              <option value="02. Karen Persoonlijk">02. Karen Persoonlijk</option>
+              <option value="03. Kapitein Roy">03. Kapitein Roy</option>
+              <option value="04. Kapitein Karen">04. Kapitein Karen</option>
+              <option value="05. Wisselende Kapiteins">05. Wisselende Kapiteins</option>
+              <option value="06. Twee Kapiteins (Samen Doen)">06. Twee Kapiteins (Samen Doen)</option>
+            </select>
+            <select id="manager-filter-sublist" class="filter-select" title="Filter op sub-lijst">
+              <option value="all">📂 Alle Sub-lijsten</option>
+              <!-- Dynamisch gevuld -->
+            </select>
+            <select id="manager-filter-timing" class="filter-select" title="Filter op timing (vast of los in tijd)">
+              <option value="all">⏱️ Alle Timings (Vast & Los)</option>
+              <option value="vast">⏰ Vast in tijd (Extern bepaald)</option>
+              <option value="los">⏳ Los in tijd (Zelf kiezen)</option>
+            </select>
+          </div>
+          <div class="timing-filter-pills" id="timing-filter-pills">
+            <button type="button" class="timing-pill active" data-timing="all" id="pill-timing-all" title="Toon alle taken">
+              ⏱️ Alle (<span id="count-timing-all">0</span>)
+            </button>
+            <button type="button" class="timing-pill timing-pill-vast" data-timing="vast" id="pill-timing-vast" title="Toon alleen taken met vaste externe timing (containers, meteropname, etc.)">
+              ⏰ Vast in tijd (<span id="count-timing-vast">0</span>)
+            </button>
+            <button type="button" class="timing-pill timing-pill-los" data-timing="los" id="pill-timing-los" title="Toon taken die je zelf flexibel kunt inplannen">
+              ⏳ Los in tijd (<span id="count-timing-los">0</span>)
             </button>
           </div>
         </div>
@@ -697,7 +713,7 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.28">
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.28"></script>
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.29">
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.29"></script>
 </body>
 </html>

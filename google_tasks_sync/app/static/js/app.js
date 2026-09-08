@@ -269,7 +269,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const filtered = managerTasks.filter(t => {
       const sub = extractSublist(t.notes, t.current_list_title, t.title);
-      const timing = extractTiming(t.notes, t.title);
+      const timing = (pendingReassignments[t.id] && pendingReassignments[t.id].target_timing)
+        ? pendingReassignments[t.id].target_timing
+        : extractTiming(t.notes, t.title);
       const matchesSearch = t.title.toLowerCase().includes(query) || (t.notes || '').toLowerCase().includes(query) || sub.toLowerCase().includes(query);
       let matchesList = (listFilter === 'all') || (t.current_list_title === listFilter);
       if (listFilter === 'incomplete') {
@@ -279,6 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const matchesTiming = (timingFilter === 'all') || (timing === timingFilter);
       return matchesSearch && matchesList && matchesSub && matchesTiming;
     });
+
+    updateTimingFilterCounts();
 
     if (filtered.length === 0) {
       managerTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Geen taken gevonden met dit filter.</td></tr>';
@@ -510,10 +514,51 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSaveReassignments.disabled = (count === 0);
   }
 
+  function updateTimingFilterCounts() {
+    let vastCount = 0;
+    let losCount = 0;
+    managerTasks.forEach(t => {
+      const timing = (pendingReassignments[t.id] && pendingReassignments[t.id].target_timing)
+        ? pendingReassignments[t.id].target_timing
+        : extractTiming(t.notes, t.title);
+      if (timing === 'vast') vastCount++;
+      else losCount++;
+    });
+
+    const elAll = document.getElementById('count-timing-all');
+    const elVast = document.getElementById('count-timing-vast');
+    const elLos = document.getElementById('count-timing-los');
+    if (elAll) elAll.textContent = managerTasks.length;
+    if (elVast) elVast.textContent = vastCount;
+    if (elLos) elLos.textContent = losCount;
+  }
+
+  // Interactive Timing Filter Pills
+  document.querySelectorAll('.timing-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.timing-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const val = pill.dataset.timing;
+      if (managerFilterTiming) {
+        managerFilterTiming.value = val;
+      }
+      renderManagerTable();
+    });
+  });
+
+  if (managerFilterTiming) {
+    managerFilterTiming.addEventListener('change', () => {
+      const val = managerFilterTiming.value;
+      document.querySelectorAll('.timing-pill').forEach(p => {
+        p.classList.toggle('active', p.dataset.timing === val);
+      });
+      renderManagerTable();
+    });
+  }
+
   managerSearch.addEventListener('input', renderManagerTable);
   managerFilterList.addEventListener('change', renderManagerTable);
   managerFilterSublist.addEventListener('change', renderManagerTable);
-  if (managerFilterTiming) managerFilterTiming.addEventListener('change', renderManagerTable);
   btnReloadManager.addEventListener('click', loadManagerTasks);
 
   btnSaveReassignments.addEventListener('click', async () => {
