@@ -269,6 +269,14 @@ async def clean_titles():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/tasks/delete-folder-headers")
+async def delete_folder_headers():
+    try:
+        res = sync_engine.delete_all_folder_header_tasks()
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 class DeleteTaskPayload(BaseModel):
     task_id: str
     list_id: str

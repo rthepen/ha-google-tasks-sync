@@ -1060,37 +1060,72 @@ class SyncEngine:
             except Exception:
                 pass
 
-        if list_title and create_folder_task and target_account:
-            try:
-                tasklists = self.client.list_tasklists(target_account)
-                lists_by_title = {l["title"]: l["id"] for l in tasklists}
-                list_id = lists_by_title.get(list_title)
-                if list_id:
-                    folder_title = f"📂 {clean_name}"
-                    raw_tasks = self.client.list_tasks(target_account, list_id)
-                    for t in raw_tasks:
-                        if t.get("title", "").strip() == folder_title:
-                            folder_task_id = t["id"]
-                            break
-                    if not folder_task_id:
-                        created = self.client.create_task(target_account, list_id, {
-                            "title": folder_title,
-                            "notes": f"Sub-lijst map voor '{clean_name}'",
-                            "status": "needsAction"
-                        })
-                        if created and "id" in created:
-                            folder_task_id = created["id"]
-                        self.log(f"Mapkop '{folder_title}' aangemaakt in Google Tasks lijst '{list_title}'", level="success")
-            except Exception as e:
-                self.log(f"Optionele mapkop kon niet worden aangemaakt: {e}", level="warning")
-
-        self.log(f"Sub-lijst '{clean_name}' geregistreerd onder categorie '{category or 'Bouw Projecten'}'", level="success")
+        # Mapkop taken worden niet langer aangemaakt in Google Tasks omdat Categorie nu een taakeigenschap is
+        self.log(f"Categorie/Sub-lijst '{clean_name}' geregistreerd onder groep '{category or 'Bouw Projecten'}'", level="success")
         return {
             "success": True,
             "sublist_name": clean_name,
             "list_title": list_title or "Universeel",
             "category": category or "Bouw Projecten",
-            "folder_task_id": folder_task_id
+            "folder_task_id": None
+        }
+
+    def delete_all_folder_header_tasks(self, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Verwijdert alle dummy mapkop-taken (startend met 📁 of 📂) uit Google Tasks, nadat eventuele subtaken eerst zijn ontkoppeld naar het hoofdniveau."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            return {"success": False, "error": "Geen accounts"}
+
+        targets = [account_id] if account_id and account_id in accounts else list(accounts.keys())
+        deleted_count = 0
+        unparented_count = 0
+        deleted_folders = []
+
+        for acc in targets:
+            tasklists = self.client.list_tasklists(acc)
+            for tl in tasklists:
+                list_id = tl["id"]
+                list_title = tl["title"]
+                raw_tasks = self.client.list_tasks(acc, list_id)
+                
+                folder_tasks = [
+                    t for t in raw_tasks 
+                    if not t.get("deleted") and any(t.get("title", "").strip().startswith(p) for p in ["📁", "📂"])
+                ]
+                if not folder_tasks:
+                    continue
+
+                folder_ids = {f["id"]: f.get("title", "").strip() for f in folder_tasks}
+
+                # 1. Ontkoppel eventuele subtaken die naar deze folders wijzen naar het hoofdniveau
+                for t in raw_tasks:
+                    if not t.get("deleted") and t.get("parent") in folder_ids:
+                        t_id = t["id"]
+                        f_title = folder_ids[t["parent"]]
+                        try:
+                            self.client.move_task(acc, list_id, t_id)
+                            unparented_count += 1
+                            self.log(f"Taak '{t.get('title')}' ontkoppeld van mapkop '{f_title}' naar hoofdniveau")
+                        except Exception as e:
+                            self.log(f"Kon taak '{t.get('title')}' niet ontkoppelen van mapkop: {e}", level="warning")
+
+                # 2. Verwijder de dummy folder-taken
+                for f in folder_tasks:
+                    f_id = f["id"]
+                    f_title = f.get("title", "").strip()
+                    try:
+                        self.client.delete_task(acc, list_id, f_id)
+                        deleted_count += 1
+                        deleted_folders.append(f"{list_title}: {f_title}")
+                        self.log(f"🗑️ Mapkop '{f_title}' verwijderd uit lijst '{list_title}'", level="success")
+                    except Exception as e:
+                        self.log(f"Kon mapkop '{f_title}' niet verwijderen: {e}", level="error")
+
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "unparented_count": unparented_count,
+            "deleted_folders": deleted_folders
         }
         
     def create_single_task(self, title: str, list_title: str, sublist_name: Optional[str] = None, notes: str = "", due: Optional[str] = None, timing: Optional[str] = "los", frequency: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
