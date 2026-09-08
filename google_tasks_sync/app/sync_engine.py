@@ -603,7 +603,7 @@ class SyncEngine:
                 existing_timing = "vast"
             elif t_low in ["los in tijd", "los", "⏳ los in tijd"]:
                 existing_timing = "los"
-            elif tag_content.startswith("🔄") or t_low.startswith("frequentie:") or t_low in ["dagelijks", "wekelijks", "maandelijks", "per kwartaal", "per half jaar", "eens per jaar"] or t_low.startswith("om de ") or t_low.startswith("elke "):
+            elif tag_content.startswith("🔄") or t_low.startswith("frequentie:") or t_low in ["eenmalig", "dagelijks", "wekelijks", "maandelijks", "per kwartaal", "per half jaar", "eens per jaar"] or t_low.startswith("om de ") or t_low.startswith("elke "):
                 clean_f = tag_content.replace("🔄", "").strip()
                 if clean_f.lower().startswith("frequentie:"):
                     clean_f = clean_f[11:].strip()
@@ -631,7 +631,7 @@ class SyncEngine:
                 parts.append("[Los in tijd]")
         if final_freq:
             cf = final_freq.replace("🔄", "").strip()
-            if cf and cf.lower() not in ["geen", "eenmalig", "geen / eenmalig", "none"]:
+            if cf and cf.lower() not in ["geen", "none"]:
                 parts.append(f"[🔄 {cf}]")
                 
         tag_str = " ".join(parts)

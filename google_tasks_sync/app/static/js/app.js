@@ -140,8 +140,38 @@ document.addEventListener('DOMContentLoaded', () => {
     let allKnown = [];
     Object.values(allSublistCategories).forEach(arr => allKnown.push(...arr));
     if (selectedSublist && !allKnown.some(s => s.toLowerCase() === selectedSublist.toLowerCase() || s.toLowerCase().includes(selectedSublist.toLowerCase()))) {
-      html += `<optgroup label="✨ Aangepaste Sub-lijst">`;
+      html += `<optgroup label="✨ Aangepaste Categorie">`;
       html += `<option value="${selectedSublist}" selected>${selectedSublist}</option>`;
+      html += `</optgroup>`;
+    }
+
+    return html;
+  }
+
+  const standardFrequencies = [
+    'Eenmalig',
+    'Dagelijks',
+    'Wekelijks',
+    'Maandelijks',
+    'Per kwartaal',
+    'Per half jaar',
+    'Eens per jaar'
+  ];
+
+  function buildFrequencyOptions(selectedFreq) {
+    const norm = (selectedFreq || 'Eenmalig').trim().toLowerCase();
+    let hasMatch = false;
+    let html = '';
+
+    standardFrequencies.forEach(f => {
+      const isSel = (norm === f.toLowerCase());
+      if (isSel) hasMatch = true;
+      html += `<option value="${f}" ${isSel ? 'selected' : ''}>${f === 'Eenmalig' ? '⚡ Eenmalig' : '🔄 ' + f}</option>`;
+    });
+
+    if (selectedFreq && !hasMatch && norm !== 'none' && norm !== 'geen') {
+      html += `<optgroup label="✍️ Aangepast">`;
+      html += `<option value="${selectedFreq}" selected>🔄 ${selectedFreq}</option>`;
       html += `</optgroup>`;
     }
 
@@ -181,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (low.startsWith('frequentie:')) {
             return clean.substring(11).trim();
           }
-          if (['dagelijks', 'wekelijks', 'maandelijks', 'per kwartaal', 'per half jaar', 'eens per jaar'].includes(low) ||
+          if (['eenmalig', 'dagelijks', 'wekelijks', 'maandelijks', 'per kwartaal', 'per half jaar', 'eens per jaar'].includes(low) ||
               low.startsWith('om de ') || low.startsWith('elke ')) {
             return clean;
           }
@@ -202,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
             continue; // Sla timing tag over
           }
           if (clean.startsWith('🔄') || low.startsWith('frequentie:') || low.startsWith('freq:') ||
-              ['dagelijks', 'wekelijks', 'maandelijks', 'per kwartaal', 'per half jaar', 'eens per jaar'].includes(low) ||
+              ['eenmalig', 'dagelijks', 'wekelijks', 'maandelijks', 'per kwartaal', 'per half jaar', 'eens per jaar'].includes(low) ||
               low.startsWith('om de ') || low.startsWith('elke ')) {
             continue; // Sla frequentie tag over
           }
@@ -281,12 +311,12 @@ document.addEventListener('DOMContentLoaded', () => {
         allSublists.add(extractSublist(t.notes, t.current_list_title, t.title));
       });
       
-      managerFilterSublist.innerHTML = '<option value="all">Alle Sub-lijsten</option>' + 
+      managerFilterSublist.innerHTML = '<option value="all">📂 Alle Categorieën</option>' + 
         Array.from(allSublists).sort(naturalSort).map(s => `<option value="${s}">📂 ${s}</option>`).join('');
 
       renderManagerTable();
     } catch (e) {
-      managerTbody.innerHTML = `<tr><td colspan="4" class="status-msg error">Fout: ${e.message}</td></tr>`;
+      managerTbody.innerHTML = `<tr><td colspan="5" class="status-msg error">Fout: ${e.message}</td></tr>`;
     }
   }
 
@@ -304,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
         : extractTiming(t.notes, t.title);
       const freq = (pendingReassignments[t.id] && pendingReassignments[t.id].target_frequency !== undefined)
         ? pendingReassignments[t.id].target_frequency
-        : extractFrequency(t.notes, t.title);
+        : (extractFrequency(t.notes, t.title) || 'Eenmalig');
 
       const matchesSearch = t.title.toLowerCase().includes(query) || (t.notes || '').toLowerCase().includes(query) || sub.toLowerCase().includes(query);
       let matchesList = (listFilter === 'all') || (t.current_list_title === listFilter);
@@ -315,10 +345,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const matchesTiming = (timingFilter === 'all') || (timing === timingFilter);
 
       let matchesFreq = true;
-      if (frequencyFilter === 'none') {
-        matchesFreq = !freq;
+      if (frequencyFilter === 'Eenmalig') {
+        matchesFreq = (freq.toLowerCase() === 'eenmalig');
       } else if (frequencyFilter === 'custom') {
-        const std = ['dagelijks', 'wekelijks', 'maandelijks', 'per kwartaal', 'per half jaar', 'eens per jaar'];
+        const std = ['eenmalig', 'dagelijks', 'wekelijks', 'maandelijks', 'per kwartaal', 'per half jaar', 'eens per jaar'];
         matchesFreq = !!freq && !std.includes(freq.toLowerCase());
       } else if (frequencyFilter !== 'all') {
         matchesFreq = !!freq && (freq.toLowerCase() === frequencyFilter.toLowerCase());
@@ -330,11 +360,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTimingFilterCounts();
 
     if (filtered.length === 0) {
-      managerTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Geen taken gevonden met dit filter.</td></tr>';
+      managerTbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">Geen taken gevonden met dit filter.</td></tr>';
       return;
     }
 
-    // Group by Sub-list
+    // Group by Categorie
     const grouped = {};
     filtered.forEach(t => {
       const sub = extractSublist(t.notes, t.current_list_title, t.title);
@@ -344,15 +374,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let html = '';
     Object.keys(grouped).sort(naturalSort).forEach(subName => {
-      // Sort tasks inside sublist by title naturally
+      // Sort tasks inside category naturally
       grouped[subName].sort((a, b) => naturalSort(a.title, b.title));
       const count = grouped[subName].length;
       html += `
         <tr class="sublist-header-row">
-          <td colspan="4">
+          <td colspan="5">
             <div class="sublist-header-badge">
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              <strong>Sub-lijst: ${subName}</strong>
+              <strong>Categorie: ${subName}</strong>
               <span class="tag" style="margin-left:auto;">${count} taken</span>
             </div>
           </td>
@@ -362,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
       grouped[subName].forEach(t => {
         const currentSub = extractSublist(t.notes, t.current_list_title, t.title);
         const currentTiming = extractTiming(t.notes, t.title);
-        const currentFreq = extractFrequency(t.notes, t.title);
+        const currentFreq = extractFrequency(t.notes, t.title) || 'Eenmalig';
         const reassignInfo = pendingReassignments[t.id];
         const isModified = !!reassignInfo;
         const selectedTargetList = isModified ? reassignInfo.target_list_title : t.current_list_title;
@@ -373,14 +403,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const isListChanged = isModified && (reassignInfo.target_list_title !== t.current_list_title);
         const isSubChanged = isModified && (reassignInfo.target_sublist !== currentSub);
         const isTimingChanged = isModified && reassignInfo.target_timing && (reassignInfo.target_timing !== currentTiming);
+        const isFreqChanged = isModified && reassignInfo.target_frequency !== undefined && (reassignInfo.target_frequency.toLowerCase() !== currentFreq.toLowerCase());
 
         const listOptionsHtml = availableLists.map(l => 
           `<option value="${l}" ${l === selectedTargetList ? 'selected' : ''}>${l}</option>`
         ).join('');
 
         const sublistOptionsHtml = buildSublistOptions(selectedTargetSub);
+        const freqOptionsHtml = buildFrequencyOptions(effectiveFreq);
 
-        // Schoonmaken van notities zodat sublijst, timing en frequentie tags niet dubbel tonen
+        // Schoonmaken van notities zodat categorie, timing en frequentie tags niet dubbel tonen
         const cleanNotes = (t.notes || '').replace(/\[(.*?)\]\s*/g, '').trim();
         const dueDateFormatted = t.due ? new Date(t.due).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
 
@@ -394,7 +426,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button type="button" class="btn-timing-toggle ${effectiveTiming === 'vast' ? 'badge-timing-vast' : 'badge-timing-los'} ${isTimingChanged ? 'changed' : ''}" data-id="${t.id}" data-timing="${effectiveTiming}" title="Klik om direct te wisselen tussen Vast in tijd (extern bepaald) en Los in tijd (zelf kiezen)">
                       ${effectiveTiming === 'vast' ? '⏰ Vast in tijd' : '⏳ Los in tijd'}
                     </button>
-                    ${effectiveFreq ? `<span class="badge-frequency" title="Minimale frequentie: ${effectiveFreq}">🔄 ${effectiveFreq}</span>` : ''}
                     ${t.needs_formatting ? `<span class="badge" style="background:rgba(210,153,34,0.18); color:#d29922; border:1px solid rgba(210,153,34,0.4); font-size:10.5px;">⚠️ ${t.issues && t.issues.length ? t.issues.join(', ') : 'Onvolledig'}</span>` : ''}
                   </div>
                   ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${cleanNotes}</div>` : ''}
@@ -405,31 +436,34 @@ document.addEventListener('DOMContentLoaded', () => {
                   <button class="btn btn-sm btn-outline btn-scroll-to-inbox" data-id="${t.id}" title="Naar inbox gaan om parameters toe te kennen" style="color:#d29922; border-color:rgba(210,153,34,0.4); padding:4px 8px; font-weight:600;">
                     🪄 Formateren
                   </button>` : ''}
-                  <button class="btn btn-sm btn-outline btn-edit-task" data-id="${t.id}" title="Taak bewerken">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                    Wijzig
+                  <button class="btn btn-sm btn-outline btn-edit-task" data-id="${t.id}" title="Taak bewerken" style="padding:5px 8px;">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                   </button>
-                  <button class="btn btn-sm btn-outline btn-delete-task" data-id="${t.id}" data-list-id="${t.current_list_id}" data-title="${t.title.replace(/"/g, '&quot;')}" title="Taak direct verwijderen" style="color:#f85149; border-color:rgba(248,81,73,0.3); padding:4px 7px;">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                    Verwijder
+                  <button class="btn btn-sm btn-outline btn-delete-task" data-id="${t.id}" data-list-id="${t.current_list_id}" data-title="${t.title.replace(/"/g, '&quot;')}" title="Taak direct verwijderen" style="color:#f85149; border-color:rgba(248,81,73,0.3); padding:5px 8px;">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                   </button>
                 </div>
               </div>
             </td>
             <td>
               <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
-                <span class="tag" style="font-size:11px; white-space:nowrap;">${t.current_list_title}</span>
-                <span class="tag" style="font-size:11px; background:rgba(31,111,235,0.15); color:#58a6ff; border:1px solid rgba(56,139,253,0.35); white-space:nowrap;" title="Huidige Sub-lijst">📂 ${currentSub}</span>
+                <span class="tag" style="font-size:11px; white-space:nowrap;" title="Huidige Kapitein">👤 ${t.current_list_title}</span>
+                <span class="tag" style="font-size:11px; background:rgba(31,111,235,0.15); color:#58a6ff; border:1px solid rgba(56,139,253,0.35); white-space:nowrap;" title="Huidige Categorie">📂 ${currentSub}</span>
               </div>
             </td>
             <td>
-              <select class="task-list-select ${isListChanged ? 'changed' : ''}" data-id="${t.id}" title="Selecteer een nieuwe hoofdlijst">
+              <select class="task-list-select ${isListChanged ? 'changed' : ''}" data-id="${t.id}" title="Selecteer een Kapitein">
                 ${listOptionsHtml}
               </select>
             </td>
             <td>
-              <select class="task-sublist-select ${isSubChanged ? 'changed' : ''}" data-id="${t.id}" title="Verander sub-lijst (universele eigenschap)">
+              <select class="task-sublist-select ${isSubChanged ? 'changed' : ''}" data-id="${t.id}" title="Verander categorie">
                 ${sublistOptionsHtml}
+              </select>
+            </td>
+            <td>
+              <select class="task-frequency-select ${isFreqChanged ? 'changed' : ''}" data-id="${t.id}" title="Minimale frequentie direct wijzigen">
+                ${freqOptionsHtml}
               </select>
             </td>
           </tr>
@@ -491,7 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Central assignment change handler for both list, sublist dropdowns and timing
+    // Central assignment change handler for list, sublist/category and frequency dropdowns and timing
     function handleTaskAssignmentChange(taskId) {
       const task = managerTasks.find(t => t.id === taskId);
       if (!task) return;
@@ -500,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const listSel = row.querySelector('.task-list-select');
       const subSel = row.querySelector('.task-sublist-select');
+      const freqSel = row.querySelector('.task-frequency-select');
       const timingBtn = row.querySelector('.btn-timing-toggle');
       if (!listSel || !subSel) return;
 
@@ -507,17 +542,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetSub = subSel.value;
       const currentSub = extractSublist(task.notes, task.current_list_title, task.title);
       const currentTiming = extractTiming(task.notes, task.title);
-      const currentFreq = extractFrequency(task.notes, task.title);
+      const currentFreq = extractFrequency(task.notes, task.title) || 'Eenmalig';
       const targetTiming = timingBtn ? timingBtn.dataset.timing : currentTiming;
-      const targetFreq = (pendingReassignments[taskId] && pendingReassignments[taskId].target_frequency !== undefined)
-        ? pendingReassignments[taskId].target_frequency
-        : currentFreq;
+      const targetFreq = freqSel ? freqSel.value : currentFreq;
 
       const listDiffers = (targetList !== task.current_list_title);
       const subDiffers = (targetSub !== '' && targetSub !== currentSub);
       const timingDiffers = (targetTiming !== currentTiming);
+      const freqDiffers = (targetFreq.toLowerCase() !== currentFreq.toLowerCase());
 
-      if (listDiffers || subDiffers || timingDiffers) {
+      if (listDiffers || subDiffers || timingDiffers || freqDiffers) {
         pendingReassignments[taskId] = {
           task_id: task.id,
           current_list_id: task.current_list_id,
@@ -532,12 +566,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         listSel.classList.toggle('changed', listDiffers);
         subSel.classList.toggle('changed', subDiffers);
+        if (freqSel) freqSel.classList.toggle('changed', freqDiffers);
         if (timingBtn) timingBtn.classList.toggle('changed', timingDiffers);
         row.classList.add('modified');
       } else {
         delete pendingReassignments[taskId];
         listSel.classList.remove('changed');
         subSel.classList.remove('changed');
+        if (freqSel) freqSel.classList.remove('changed');
         if (timingBtn) timingBtn.classList.remove('changed');
         row.classList.remove('modified');
       }
@@ -552,8 +588,16 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Attach sublist change handlers
+    // Attach sublist/category change handlers
     managerTbody.querySelectorAll('.task-sublist-select').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const taskId = sel.dataset.id;
+        handleTaskAssignmentChange(taskId);
+      });
+    });
+
+    // Attach frequency change handlers
+    managerTbody.querySelectorAll('.task-frequency-select').forEach(sel => {
       sel.addEventListener('change', () => {
         const taskId = sel.dataset.id;
         handleTaskAssignmentChange(taskId);
@@ -1610,7 +1654,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addTaskDue) addTaskDue.value = '';
     if (addTaskNotes) addTaskNotes.value = '';
     if (addTaskTiming) addTaskTiming.value = 'los';
-    if (addTaskFrequency) addTaskFrequency.value = '';
+    if (addTaskFrequency) addTaskFrequency.value = 'Eenmalig';
     if (addTaskCustomFrequencyGroup) addTaskCustomFrequencyGroup.style.display = 'none';
     if (addTaskCustomFrequency) addTaskCustomFrequency.value = '';
     if (addTaskList) addTaskList.value = '05. Wisselende Kapiteins';
@@ -1639,10 +1683,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const listTitle = addTaskList.value;
       const chosenSublist = (addTaskCustomSublist.value || '').trim() || addTaskSublist.value;
       const timing = addTaskTiming ? addTaskTiming.value : 'los';
-      let chosenFrequency = null;
+      let chosenFrequency = 'Eenmalig';
       if (addTaskFrequency && addTaskFrequency.value) {
         if (addTaskFrequency.value === 'custom') {
-          chosenFrequency = (addTaskCustomFrequency ? addTaskCustomFrequency.value : '').trim() || null;
+          chosenFrequency = (addTaskCustomFrequency ? addTaskCustomFrequency.value : '').trim() || 'Eenmalig';
         } else {
           chosenFrequency = addTaskFrequency.value;
         }
@@ -1691,7 +1735,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 4B. NIEUWE SUB-LIJST TOEVOEGEN MODAL LOGIC (Universele taakeigenschap)
+  // 4B. NIEUWE CATEGORIE TOEVOEGEN MODAL LOGIC (Universele taakeigenschap)
   // =========================================================================
   const btnOpenAddSublistModal = document.getElementById('btn-open-add-sublist-modal');
   const addSublistModal = document.getElementById('add-sublist-modal');
@@ -1723,7 +1767,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const rawName = (addSublistName.value || '').trim();
       if (!rawName) {
-        showToast('Vul een sub-lijst naam in!', true);
+        showToast('Vul een categorie naam in!', true);
         if (addSublistName) addSublistName.focus();
         return;
       }
@@ -1732,7 +1776,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       btnSubmitAddSublist.disabled = true;
       btnSubmitAddSublist.textContent = 'Bezig met aanmaken...';
-      showToast('Nieuwe sub-lijst aanmaken...');
+      showToast('Nieuwe categorie aanmaken...');
 
       try {
         const res = await fetch(`${rootPath}/api/sublists/create`, {
@@ -1755,7 +1799,7 @@ document.addEventListener('DOMContentLoaded', () => {
             allSublistCategories[catKey].push(newSubName);
           }
 
-          showToast(`✓ Universele Sub-lijst '${newSubName}' succesvol geregistreerd! 🎉`);
+          showToast(`✓ Universele Categorie '${newSubName}' succesvol geregistreerd! 🎉`);
           closeAddSublistModal();
           await loadManagerTasks();
           loadJsonExport();
@@ -1768,7 +1812,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSubmitAddSublist.disabled = false;
         btnSubmitAddSublist.innerHTML = `
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-          Sub-lijst Aanmaken 🚀
+          Categorie Aanmaken 🚀
         `;
       }
     });
@@ -1827,10 +1871,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const currentFreq = extractFrequency(task.notes, task.title);
-    const stdFreqs = ['Dagelijks', 'Wekelijks', 'Maandelijks', 'Per kwartaal', 'Per half jaar', 'Eens per jaar'];
+    const stdFreqs = ['Eenmalig', 'Dagelijks', 'Wekelijks', 'Maandelijks', 'Per kwartaal', 'Per half jaar', 'Eens per jaar'];
     if (editTaskFrequency) {
-      if (!currentFreq) {
-        editTaskFrequency.value = '';
+      if (!currentFreq || currentFreq.toLowerCase() === 'eenmalig') {
+        editTaskFrequency.value = 'Eenmalig';
         if (editTaskCustomFrequencyGroup) editTaskCustomFrequencyGroup.style.display = 'none';
         if (editTaskCustomFrequency) editTaskCustomFrequency.value = '';
       } else {
