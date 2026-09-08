@@ -20,7 +20,7 @@
         </div>
         <div class="brand-text">
           <h1>Google Tasks & Kapitein Verdeler</h1>
-          <span class="badge" id="sync-status-badge">v1.1.31</span>
+          <span class="badge" id="sync-status-badge">v1.1.32</span>
         </div>
       </div>
       
@@ -100,6 +100,11 @@
             <select id="manager-filter-sublist" class="filter-select" title="Filter op Categorie">
               <option value="all">📂 Alle Categorieën</option>
               <!-- Dynamisch gevuld -->
+            </select>
+            <select id="manager-filter-status" class="filter-select" title="Filter op status (Open / Voltooid)">
+              <option value="all" selected>📋 Alle Statussen</option>
+              <option value="needsAction">⏳ Alleen Open</option>
+              <option value="completed">✓ Alleen Voltooid</option>
             </select>
             <select id="manager-filter-timing" class="filter-select" title="Filter op timing (vast of los in tijd)">
               <option value="all">⏱️ Alle Timings (Vast & Los)</option>
@@ -771,7 +776,7 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast"></div>
 
-  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.31">
-  <script src="{{ root_path }}/static/js/app.js?v=1.1.31"></script>
+  <link rel="stylesheet" href="{{ root_path }}/static/css/styles.css?v=1.1.32">
+  <script src="{{ root_path }}/static/js/app.js?v=1.1.32"></script>
 </body>
 </html>

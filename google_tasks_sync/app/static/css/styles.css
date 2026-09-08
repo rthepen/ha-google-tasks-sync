@@ -550,6 +550,80 @@ html, body {
   white-space: nowrap;
 }
 
+/* Completion Checkbox Button & Completed Task Styling */
+.btn-task-check {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  border-radius: 50%;
+  border: 2px solid #30363d;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 1px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: transparent;
+  flex-shrink: 0;
+}
+
+.btn-task-check:hover {
+  border-color: #3fb950;
+  background: rgba(63, 185, 80, 0.15);
+  transform: scale(1.1);
+}
+
+.btn-task-check.checked {
+  background: #238636;
+  border-color: #3fb950;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(46, 160, 67, 0.45);
+}
+
+.btn-task-check.loading {
+  opacity: 0.5;
+  pointer-events: none;
+  animation: pulse 1s infinite alternate;
+}
+
+.task-title-completed {
+  text-decoration: line-through;
+  opacity: 0.65;
+  color: var(--text-muted) !important;
+}
+
+.task-row-completed {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.badge-completed {
+  background: rgba(63, 185, 80, 0.18) !important;
+  color: #3fb950 !important;
+  border: 1px solid rgba(63, 185, 80, 0.4) !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  border-radius: 10px;
+  padding: 1px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.badge-last-completed {
+  background: rgba(139, 148, 158, 0.15) !important;
+  color: #8b949e !important;
+  border: 1px solid rgba(139, 148, 158, 0.3) !important;
+  font-size: 10.5px !important;
+  border-radius: 10px;
+  padding: 1px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
 /* ================================================= */
 /* VIEW 3: WIZARD KAPITEIN VERDELER STYLES */
 /* ================================================= */

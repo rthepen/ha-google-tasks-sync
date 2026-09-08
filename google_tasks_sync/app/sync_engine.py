@@ -1,6 +1,8 @@
 import time
 import json
 import re
+import os
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
 from threading import Timer
 from google_client import GoogleTasksClient
@@ -14,6 +16,14 @@ class SyncEngine:
         self.last_sync_status: str = "Gereed"
         self.logs: List[Dict[str, Any]] = []
         self._timer: Optional[Timer] = None
+
+        # Persistent completion history store
+        self.history_file = "/data/completion_history.json"
+        if not os.path.exists("/data") and not os.path.isdir("/data"):
+            self.history_file = os.path.join(os.path.dirname(__file__), "completion_history.json")
+        self.completion_history: Dict[str, Any] = {}
+        self.load_completion_history()
+
         self.start_periodic_sync()
 
     def log(self, message: str, level: str = "info"):
@@ -39,6 +49,252 @@ class SyncEngine:
         self._timer = Timer(self.sync_interval, _job)
         self._timer.daemon = True
         self._timer.start()
+
+    # =========================================================================
+    # COMPLETION HISTORY & RECURRING TASK LOGIC
+    # =========================================================================
+    def load_completion_history(self):
+        """Laadt de persistente voltooiingsgeschiedenis van taken."""
+        try:
+            if os.path.exists(self.history_file):
+                with open(self.history_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.completion_history = data.get("tasks", {})
+        except Exception as e:
+            print(f"Kon completion history niet laden: {e}")
+            self.completion_history = {}
+
+    def save_completion_history(self):
+        """Slaat de voltooiingsgeschiedenis persistent op in /data (Home Assistant storage)."""
+        try:
+            os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
+            with open(self.history_file, "w", encoding="utf-8") as f:
+                json.dump({"tasks": self.completion_history}, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Kon completion history niet opslaan: {e}")
+
+    def _normalize_title_key(self, title: str) -> str:
+        """Normaliseert taaktitels voor robuuste historie-koppeling (stript volgnummers en prefixes)."""
+        clean = (title or "").strip()
+        clean = clean.replace("📂", "").strip()
+        clean = re.sub(r"^\d+\.\s*.*?-\s*", "", clean).strip()
+        clean = re.sub(r"^\d+\.\s*", "", clean).strip()
+        return clean.lower()
+
+    def record_task_completion(self, task_id: str, title: str, completed_at: Optional[str] = None, frequency: Optional[str] = None):
+        """Registreert het tijdstip waarop een taak is voltooid."""
+        now_iso = completed_at or datetime.now(timezone.utc).isoformat()
+        now_date = now_iso[:10]
+        key = self._normalize_title_key(title)
+        if not key:
+            return
+
+        if key not in self.completion_history:
+            self.completion_history[key] = {
+                "title": title,
+                "task_id": task_id,
+                "last_completed_at": now_iso,
+                "last_completed_date": now_date,
+                "frequency": frequency,
+                "history": []
+            }
+        else:
+            self.completion_history[key]["last_completed_at"] = now_iso
+            self.completion_history[key]["last_completed_date"] = now_date
+            if frequency:
+                self.completion_history[key]["frequency"] = frequency
+            if task_id:
+                self.completion_history[key]["task_id"] = task_id
+
+        hist_list = self.completion_history[key].setdefault("history", [])
+        if not hist_list or hist_list[-1].get("completed_at") != now_iso:
+            hist_list.append({"completed_at": now_iso, "date": now_date})
+            if len(hist_list) > 20:
+                self.completion_history[key]["history"] = hist_list[-20:]
+
+        self.save_completion_history()
+
+    def extract_frequency_from_notes(self, notes: str) -> Optional[str]:
+        """Haalt de minimale frequentie uit de tags in notities [🔄 ...]."""
+        clean = (notes or "").strip()
+        while True:
+            m = re.match(r"^\[(.*?)\]\s*", clean)
+            if not m:
+                break
+            tag = m.group(1).strip()
+            t_low = tag.lower()
+            if tag.startswith("🔄") or t_low.startswith("frequentie:") or t_low in ["eenmalig", "dagelijks", "wekelijks", "maandelijks", "per kwartaal", "per half jaar", "eens per jaar"] or t_low.startswith("om de ") or t_low.startswith("elke "):
+                clean_f = tag.replace("🔄", "").strip()
+                if clean_f.lower().startswith("frequentie:"):
+                    clean_f = clean_f[11:].strip()
+                return clean_f
+            clean = clean[m.end():].strip()
+        return None
+
+    def should_reset_task(self, frequency: str, completed_at_str: str) -> bool:
+        """Bepaalt of een voltooide herhalende taak opnieuw op onvoltooid gezet moet worden."""
+        if not frequency or not completed_at_str:
+            return False
+
+        f_low = frequency.strip().lower().replace("🔄", "").strip()
+        if f_low in ["eenmalig", "geen", "geen / eenmalig", "none", ""]:
+            return False
+
+        try:
+            c_clean = completed_at_str.replace("Z", "+00:00")
+            if "T" in c_clean:
+                comp_dt = datetime.fromisoformat(c_clean)
+            else:
+                comp_dt = datetime.strptime(c_clean[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+
+            now = datetime.now(comp_dt.tzinfo if comp_dt.tzinfo else timezone.utc)
+            elapsed = now - comp_dt
+            elapsed_days = elapsed.total_seconds() / 86400.0
+
+            if f_low == "dagelijks":
+                # Heropen indien op een eerdere kalenderdag voltooid of >= 20 uur verstreken
+                return comp_dt.date() < now.date() or elapsed_days >= 0.85
+
+            elif f_low == "wekelijks":
+                return elapsed_days >= 6.8
+
+            elif f_low == "maandelijks":
+                return elapsed_days >= 27.5
+
+            elif f_low == "per kwartaal":
+                return elapsed_days >= 89.0
+
+            elif f_low == "per half jaar":
+                return elapsed_days >= 180.0
+
+            elif f_low == "eens per jaar":
+                return elapsed_days >= 364.0
+
+            # Aangepast / Custom: bijv. "om de 6 weken", "om de 3 dagen", "elke 14 dagen"
+            m = re.search(r"(?:om\s*de|elke)?\s*(\d+)\s*(dag|dagen|week|weken|maand|maanden|mnd|kwartaal|kwartalen|half\s*jaar|jaar|jaren)", f_low)
+            if m:
+                qty = int(m.group(1))
+                unit = m.group(2)
+                if "dag" in unit:
+                    target_days = qty * 0.95
+                elif "week" in unit:
+                    target_days = qty * 7.0 - 0.2
+                elif "maand" in unit or "mnd" in unit:
+                    target_days = qty * 30.0 - 1.0
+                elif "kwartaal" in unit:
+                    target_days = qty * 90.0 - 2.0
+                elif "half" in unit:
+                    target_days = qty * 182.0 - 3.0
+                elif "jaar" in unit:
+                    target_days = qty * 365.0 - 5.0
+                else:
+                    target_days = qty * 7.0
+                return elapsed_days >= target_days
+
+        except Exception as e:
+            print(f"Fout bij frequentie reset check voor '{frequency}' ({completed_at_str}): {e}")
+
+        return False
+
+    def toggle_task_status(self, task_id: str, list_id: str, target_status: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Zet een taak op voltooid (completed) of onvoltooid (needsAction) in Google Tasks en registreert het tijdstip."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            raise ValueError("Geen accounts geconfigureerd")
+
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+
+        new_status = target_status
+        if not new_status:
+            # Haal huidige taak op om status te inverteren
+            task_data = self.client.api_request(target_account, f"https://tasks.googleapis.com/tasks/v1/lists/{list_id}/tasks/{task_id}")
+            cur = task_data.get("status", "needsAction") if task_data else "needsAction"
+            new_status = "needsAction" if cur == "completed" else "completed"
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        payload: Dict[str, Any] = {"status": new_status}
+        if new_status == "completed":
+            payload["completed"] = now_iso
+
+        res = self.client.update_task(target_account, list_id, task_id, payload)
+        if not res:
+            raise ValueError(f"Kon status van taak '{task_id}' niet bijwerken in Google Tasks")
+
+        t_title = res.get("title", "") if isinstance(res, dict) else ""
+        t_notes = res.get("notes", "") if isinstance(res, dict) else ""
+        freq = self.extract_frequency_from_notes(t_notes)
+
+        if new_status == "completed":
+            self.record_task_completion(task_id, t_title, completed_at=now_iso, frequency=freq)
+            self.log(f"Taak '{t_title or task_id}' gemarkeerd als voltooid ✓", level="success")
+        else:
+            self.log(f"Taak '{t_title or task_id}' weer geopend (onvoltooid)", level="info")
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "status": new_status,
+            "completed_at": now_iso if new_status == "completed" else None
+        }
+
+    def check_and_reset_recurring_tasks(self, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Controleert alle voltooide herhalende taken en reset deze naar 'needsAction' zodra de frequentiecriteria verstreken zijn."""
+        accounts = self.client.get_accounts()
+        if not accounts:
+            return {"reset_count": 0, "reset_tasks": []}
+
+        target_account = account_id if account_id and account_id in accounts else list(accounts.keys())[0]
+        tasklists = self.client.list_tasklists(target_account)
+
+        reset_tasks = []
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        for tl in tasklists:
+            list_id = tl["id"]
+            list_title = tl["title"]
+            raw_tasks = self.client.list_tasks(target_account, list_id)
+            for t in raw_tasks:
+                if t.get("deleted") or t.get("title", "").startswith("📂 "):
+                    continue
+
+                t_status = t.get("status", "needsAction")
+                t_title = t.get("title", "").strip()
+                t_id = t.get("id")
+                t_notes = t.get("notes", "")
+                freq = self.extract_frequency_from_notes(t_notes)
+
+                if t_status == "completed":
+                    completed_at = t.get("completed")
+                    t_key = self._normalize_title_key(t_title)
+                    if not completed_at and t_key in self.completion_history:
+                        completed_at = self.completion_history[t_key].get("last_completed_at")
+
+                    if completed_at:
+                        self.record_task_completion(t_id, t_title, completed_at=completed_at, frequency=freq)
+
+                    if freq and completed_at and self.should_reset_task(freq, completed_at):
+                        updated = self.client.update_task(target_account, list_id, t_id, {
+                            "status": "needsAction"
+                        })
+                        if updated:
+                            if t_key in self.completion_history:
+                                self.completion_history[t_key]["last_reset_at"] = now_iso
+                            self.save_completion_history()
+                            disp_date = completed_at[:10]
+                            self.log(f"🔄 Herhalende taak '{t_title}' in '{list_title}' automatisch weer op onvoltooid gezet (frequentie: {freq}, voltooid op {disp_date})", level="success")
+                            reset_tasks.append({
+                                "id": t_id,
+                                "title": t_title,
+                                "list_title": list_title,
+                                "frequency": freq,
+                                "completed_at": completed_at
+                            })
+
+        return {
+            "success": True,
+            "reset_count": len(reset_tasks),
+            "reset_tasks": reset_tasks
+        }
 
     def export_full_json(self, account_id: Optional[str] = None) -> Dict[str, Any]:
         accounts = self.client.get_accounts()
@@ -254,6 +510,14 @@ class SyncEngine:
         try:
             accounts = self.client.get_accounts()
             account_ids = list(accounts.keys())
+            primary_id = account_ids[0] if account_ids else None
+
+            # Controleer en heropen herhalende taken volgens hun minimale frequentie
+            if primary_id:
+                try:
+                    self.check_and_reset_recurring_tasks(primary_id)
+                except Exception as e:
+                    self.log(f"Fout bij controle herhalende taken: {e}", level="warning")
 
             if len(account_ids) < 2:
                 msg = f"Multi-account sync overgeslagen ({len(account_ids)} account actief)."
@@ -263,7 +527,6 @@ class SyncEngine:
                 return {"status": "skipped", "message": msg}
 
             # Multi-account sync
-            primary_id = account_ids[0]
             secondary_ids = account_ids[1:]
 
             self.log(f"Sync tussen {len(account_ids)} accounts: {', '.join([accounts[a].get('name', a) for a in account_ids])}")
@@ -288,7 +551,7 @@ class SyncEngine:
             self.is_syncing = False
 
     def get_all_tasks(self, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Haalt alle taken op uit alle lijsten met hun huidige lijstnaam."""
+        """Haalt alle taken op uit alle lijsten met hun huidige lijstnaam, controleert voltooide herhalende taken en levert voltooiingshistorie mee."""
         accounts = self.client.get_accounts()
         if not accounts:
             return []
@@ -297,6 +560,8 @@ class SyncEngine:
         tasklists = self.client.list_tasklists(target_account)
         
         tasks_pool = []
+        now_iso = datetime.now(timezone.utc).isoformat()
+
         for cl in tasklists:
             list_id = cl["id"]
             list_title = cl["title"]
@@ -306,6 +571,40 @@ class SyncEngine:
                 if t.get("deleted"):
                     continue
                 tit = t.get("title", "").strip()
+                t_id = t.get("id")
+                t_notes = t.get("notes", "")
+                t_status = t.get("status", "needsAction")
+                completed_at = t.get("completed")
+                t_key = self._normalize_title_key(tit)
+                freq = self.extract_frequency_from_notes(t_notes)
+
+                # Voltooiingsgeschiedenis bijwerken en herhalende taak resetten indien criteria voldaan zijn
+                if t_status == "completed":
+                    if not completed_at and t_key in self.completion_history:
+                        completed_at = self.completion_history[t_key].get("last_completed_at")
+
+                    if completed_at:
+                        self.record_task_completion(t_id, tit, completed_at=completed_at, frequency=freq)
+
+                    # Indien herhalend en criteria verstreken: automatisch weer openen
+                    if freq and completed_at and self.should_reset_task(freq, completed_at):
+                        try:
+                            updated = self.client.update_task(target_account, list_id, t_id, {
+                                "status": "needsAction"
+                            })
+                            if updated:
+                                t_status = "needsAction"
+                                if t_key in self.completion_history:
+                                    self.completion_history[t_key]["last_reset_at"] = now_iso
+                                self.save_completion_history()
+                                disp_date = completed_at[:10]
+                                self.log(f"🔄 Taak '{tit}' in '{list_title}' automatisch weer op onvoltooid gezet (frequentie: {freq}, voltooid op {disp_date})", level="success")
+                        except Exception as e:
+                            print(f"Kon taak '{tit}' niet automatisch resetten: {e}")
+
+                # Bepaal recentste voltooiingstijdstip uit persistentie of API
+                last_completed = (self.completion_history.get(t_key) or {}).get("last_completed_at") or completed_at
+
                 has_num = bool(re.search(r"^\d+\.", tit)) or bool(re.search(r"-\s*\d+\.", tit))
                 issues = []
                 if is_todo:
@@ -314,10 +613,13 @@ class SyncEngine:
                     issues.append("Geen volgnummer")
 
                 tasks_pool.append({
-                    "id": t.get("id"),
+                    "id": t_id,
                     "title": tit,
-                    "notes": t.get("notes", ""),
-                    "status": t.get("status", "needsAction"),
+                    "notes": t_notes,
+                    "status": t_status,
+                    "completed": completed_at if t_status == "completed" else None,
+                    "last_completed": last_completed,
+                    "frequency": freq,
                     "due": t.get("due"),
                     "parent_id": t.get("parent"),
                     "current_list_id": list_id,
@@ -855,8 +1157,8 @@ class SyncEngine:
         self.log(f"Taak '{task_id}' succesvol verwijderd uit lijst '{list_id}'", level="success")
         return {"success": True, "task_id": task_id}
 
-    def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, sublist_name: Optional[str] = None, timing: Optional[str] = None, frequency: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
-        """Wijzigt titel, notities, deadline, timing, frequentie of verplaatst een taak naar een andere lijst of sublijst."""
+    def update_single_task(self, task_id: str, list_id: str, title: str, notes: str = "", due: Optional[str] = None, target_list_title: Optional[str] = None, sublist_name: Optional[str] = None, timing: Optional[str] = None, frequency: Optional[str] = None, status: Optional[str] = None, account_id: Optional[str] = None) -> Dict[str, Any]:
+        """Wijzigt titel, notities, deadline, timing, frequentie, status of verplaatst een taak naar een andere lijst of sublijst."""
         accounts = self.client.get_accounts()
         if not accounts:
             raise ValueError("Geen accounts geconfigureerd")
@@ -896,11 +1198,15 @@ class SyncEngine:
             elif base_title and base_title != final_title:
                 final_title = base_title
 
-        body = {
+        body: Dict[str, Any] = {
             "title": final_title,
-            "notes": final_notes,
-            "status": "needsAction"
+            "notes": final_notes
         }
+        if status:
+            body["status"] = status
+        elif dest_list_id != list_id:
+            body["status"] = "needsAction"
+
         if due:
             body["due"] = f"{due}T00:00:00.000Z" if len(due) == 10 else due
         else:

@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const managerSearch = document.getElementById('manager-search');
   const managerFilterList = document.getElementById('manager-filter-list');
   const managerFilterSublist = document.getElementById('manager-filter-sublist');
+  const managerFilterStatus = document.getElementById('manager-filter-status');
   const managerFilterTiming = document.getElementById('manager-filter-timing');
   const managerFilterFrequency = document.getElementById('manager-filter-frequency');
   const btnReloadManager = document.getElementById('btn-reload-manager');
@@ -290,7 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function loadManagerTasks() {
-    managerTbody.innerHTML = '<tr><td colspan="4" class="loading-cell">Taken ophalen uit alle Google Tasks lijsten...</td></tr>';
+    managerTbody.innerHTML = '<tr><td colspan="5" class="loading-cell">Taken ophalen uit alle Google Tasks lijsten...</td></tr>';
     pendingReassignments = {};
     updatePendingBadge();
     loadInboxTasks();
@@ -303,7 +304,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // Filter out folder header tasks so only real tasks appear in the list
       managerTasks = rawTasks.filter(t => !t.title.startsWith('📂 '));
       const incompleteCount = managerTasks.filter(t => t.needs_formatting).length;
-      managerStatsTag.textContent = `${managerTasks.length} taken (${incompleteCount} onvolledig)`;
+      const completedCount = managerTasks.filter(t => t.status === 'completed').length;
+      const openCount = managerTasks.length - completedCount;
+      managerStatsTag.textContent = `${managerTasks.length} taken (${openCount} open, ${completedCount} voltooid)`;
       
       // Update sublist filter options
       const allSublists = new Set();
@@ -324,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const query = (managerSearch.value || '').toLowerCase().trim();
     const listFilter = managerFilterList.value;
     const subFilter = managerFilterSublist.value;
+    const statusFilter = managerFilterStatus ? managerFilterStatus.value : 'all';
     const timingFilter = managerFilterTiming ? managerFilterTiming.value : 'all';
     const frequencyFilter = managerFilterFrequency ? managerFilterFrequency.value : 'all';
 
@@ -344,6 +348,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const matchesSub = (subFilter === 'all') || (sub === subFilter);
       const matchesTiming = (timingFilter === 'all') || (timing === timingFilter);
 
+      let matchesStatus = true;
+      if (statusFilter === 'needsAction') {
+        matchesStatus = (t.status !== 'completed');
+      } else if (statusFilter === 'completed') {
+        matchesStatus = (t.status === 'completed');
+      }
+
       let matchesFreq = true;
       if (frequencyFilter === 'Eenmalig') {
         matchesFreq = (freq.toLowerCase() === 'eenmalig');
@@ -354,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         matchesFreq = !!freq && (freq.toLowerCase() === frequencyFilter.toLowerCase());
       }
 
-      return matchesSearch && matchesList && matchesSub && matchesTiming && matchesFreq;
+      return matchesSearch && matchesList && matchesSub && matchesTiming && matchesFreq && matchesStatus;
     });
 
     updateTimingFilterCounts();
@@ -400,6 +411,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const effectiveTiming = (isModified && reassignInfo.target_timing) ? reassignInfo.target_timing : currentTiming;
         const effectiveFreq = (isModified && reassignInfo.target_frequency !== undefined) ? reassignInfo.target_frequency : currentFreq;
 
+        const isCompleted = (t.status === 'completed');
+        let completedBadgeHtml = '';
+        if (isCompleted) {
+          const cDate = t.completed ? new Date(t.completed).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
+          completedBadgeHtml = `<span class="badge badge-completed" title="Voltooid op ${cDate || 'onbekend'}">✓ Voltooid${cDate ? ' (' + cDate + ')' : ''}</span>`;
+        } else if (t.last_completed) {
+          const lcDate = new Date(t.last_completed).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+          completedBadgeHtml = `<span class="badge badge-last-completed" title="Eerder voltooid op ${lcDate}">🕒 Laatst: ${lcDate}</span>`;
+        }
+
         const isListChanged = isModified && (reassignInfo.target_list_title !== t.current_list_title);
         const isSubChanged = isModified && (reassignInfo.target_sublist !== currentSub);
         const isTimingChanged = isModified && reassignInfo.target_timing && (reassignInfo.target_timing !== currentTiming);
@@ -417,18 +438,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const dueDateFormatted = t.due ? new Date(t.due).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
 
         html += `
-          <tr class="${isModified ? 'modified' : ''}" data-id="${t.id}">
-            <td style="padding-left:24px;">
+          <tr class="${isModified ? 'modified' : ''} ${isCompleted ? 'task-row-completed' : ''}" data-id="${t.id}">
+            <td style="padding-left:20px;">
               <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                <div>
-                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                    <strong>${t.title}</strong>
-                    <button type="button" class="btn-timing-toggle ${effectiveTiming === 'vast' ? 'badge-timing-vast' : 'badge-timing-los'} ${isTimingChanged ? 'changed' : ''}" data-id="${t.id}" data-timing="${effectiveTiming}" title="Klik om direct te wisselen tussen Vast in tijd (extern bepaald) en Los in tijd (zelf kiezen)">
-                      ${effectiveTiming === 'vast' ? '⏰ Vast in tijd' : '⏳ Los in tijd'}
-                    </button>
-                    ${t.needs_formatting ? `<span class="badge" style="background:rgba(210,153,34,0.18); color:#d29922; border:1px solid rgba(210,153,34,0.4); font-size:10.5px;">⚠️ ${t.issues && t.issues.length ? t.issues.join(', ') : 'Onvolledig'}</span>` : ''}
+                <div style="display:flex; align-items:flex-start; gap:10px; flex:1;">
+                  <button type="button" class="btn-task-check ${isCompleted ? 'checked' : ''}" data-id="${t.id}" data-list-id="${t.current_list_id}" data-status="${t.status || 'needsAction'}" title="${isCompleted ? 'Klik om taak weer te openen (onvoltooid)' : 'Klik om taak als voltooid te markeren (net als in Google Tasks)'}">
+                    ${isCompleted ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:12px;height:12px;"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                  </button>
+                  <div style="flex:1;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <strong class="${isCompleted ? 'task-title-completed' : ''}">${t.title}</strong>
+                      ${completedBadgeHtml}
+                      <button type="button" class="btn-timing-toggle ${effectiveTiming === 'vast' ? 'badge-timing-vast' : 'badge-timing-los'} ${isTimingChanged ? 'changed' : ''}" data-id="${t.id}" data-timing="${effectiveTiming}" title="Klik om direct te wisselen tussen Vast in tijd (extern bepaald) en Los in tijd (zelf kiezen)">
+                        ${effectiveTiming === 'vast' ? '⏰ Vast in tijd' : '⏳ Los in tijd'}
+                      </button>
+                      ${t.needs_formatting ? `<span class="badge" style="background:rgba(210,153,34,0.18); color:#d29922; border:1px solid rgba(210,153,34,0.4); font-size:10.5px;">⚠️ ${t.issues && t.issues.length ? t.issues.join(', ') : 'Onvolledig'}</span>` : ''}
+                    </div>
+                    ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${cleanNotes}</div>` : ''}
                   </div>
-                  ${cleanNotes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${cleanNotes}</div>` : ''}
                 </div>
                 <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                   ${t.due ? `<span class="badge" style="font-size:10.5px; background:rgba(210,153,34,0.15); color:#d29922; border-color:rgba(210,153,34,0.4);">📅 ${dueDateFormatted}</span>` : ''}
@@ -472,6 +499,62 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     managerTbody.innerHTML = html;
+
+    // Attach task completion checkbox listeners (zoals in Google Tasks)
+    managerTbody.querySelectorAll('.btn-task-check').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const taskId = btn.dataset.id;
+        const listId = btn.dataset.listId;
+        const currentStatus = btn.dataset.status;
+        const targetStatus = (currentStatus === 'completed') ? 'needsAction' : 'completed';
+
+        btn.classList.add('loading');
+        try {
+          const res = await fetch(`${rootPath}/api/tasks/toggle-status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              task_id: taskId,
+              list_id: listId,
+              status: targetStatus
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.detail || data.error || 'Kon status niet wijzigen');
+          }
+
+          const task = managerTasks.find(t => t.id === taskId);
+          if (task) {
+            task.status = targetStatus;
+            if (targetStatus === 'completed') {
+              task.completed = data.completed_at || new Date().toISOString();
+              task.last_completed = task.completed;
+            } else {
+              task.completed = null;
+            }
+          }
+
+          const completedCount = managerTasks.filter(t => t.status === 'completed').length;
+          const openCount = managerTasks.length - completedCount;
+          managerStatsTag.textContent = `${managerTasks.length} taken (${openCount} open, ${completedCount} voltooid)`;
+
+          if (targetStatus === 'completed') {
+            showToast('✓ Taak gemarkeerd als voltooid in Google Tasks!');
+          } else {
+            showToast('Taak weer geopend (onvoltooid)');
+          }
+
+          renderManagerTable();
+          loadJsonExport();
+        } catch (err) {
+          showToast('Fout bij wijzigen status: ' + err.message, true);
+        } finally {
+          btn.classList.remove('loading');
+        }
+      });
+    });
 
     // Attach timing toggle button listeners
     managerTbody.querySelectorAll('.btn-timing-toggle').forEach(btn => {
@@ -656,6 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
   managerSearch.addEventListener('input', renderManagerTable);
   managerFilterList.addEventListener('change', renderManagerTable);
   managerFilterSublist.addEventListener('change', renderManagerTable);
+  if (managerFilterStatus) managerFilterStatus.addEventListener('change', renderManagerTable);
   if (managerFilterFrequency) managerFilterFrequency.addEventListener('change', renderManagerTable);
   btnReloadManager.addEventListener('click', loadManagerTasks);
 
@@ -1935,6 +2019,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const notes = (editTaskNotes.value || '').trim();
       const due = editTaskDue.value ? editTaskDue.value : null;
 
+      const existingTask = managerTasks.find(t => t.id === taskId);
+      const currentStatus = existingTask ? existingTask.status : 'needsAction';
+
       btnSubmitEditTask.disabled = true;
       btnSubmitEditTask.textContent = 'Wijzigingen opslaan in Google Tasks...';
       showToast('Wijzigingen opslaan in Google Tasks...');
@@ -1952,7 +2039,8 @@ document.addEventListener('DOMContentLoaded', () => {
             target_list_title: targetList,
             sublist_name: targetSublist,
             timing: timing,
-            frequency: chosenFrequency
+            frequency: chosenFrequency,
+            status: currentStatus
           })
         });
 

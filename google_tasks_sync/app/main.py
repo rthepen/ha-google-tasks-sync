@@ -194,6 +194,7 @@ class UpdateTaskPayload(BaseModel):
     sublist_name: Optional[str] = None
     timing: Optional[str] = None
     frequency: Optional[str] = None
+    status: Optional[str] = None
 
 @app.post("/api/tasks/update")
 async def update_task(payload: UpdateTaskPayload):
@@ -207,11 +208,39 @@ async def update_task(payload: UpdateTaskPayload):
             target_list_title=payload.target_list_title,
             sublist_name=payload.sublist_name,
             timing=payload.timing,
-            frequency=payload.frequency
+            frequency=payload.frequency,
+            status=payload.status
         )
         return res
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+class ToggleTaskStatusPayload(BaseModel):
+    task_id: str
+    list_id: str
+    status: Optional[str] = None
+    account_id: Optional[str] = None
+
+@app.post("/api/tasks/toggle-status")
+async def toggle_task_status(payload: ToggleTaskStatusPayload):
+    try:
+        res = sync_engine.toggle_task_status(
+            task_id=payload.task_id,
+            list_id=payload.list_id,
+            target_status=payload.status,
+            account_id=payload.account_id
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/tasks/check-frequencies")
+async def check_frequencies():
+    try:
+        res = sync_engine.check_and_reset_recurring_tasks()
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 class DeleteTaskPayload(BaseModel):
     task_id: str
